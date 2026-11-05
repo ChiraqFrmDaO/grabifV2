@@ -1231,6 +1231,11 @@ app.get('/admin', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'views', 'admin.html'));
 });
 
+// Users management page (admin only)
+app.get('/users', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'views', 'users.html'));
+});
+
 app.get('/api/logs', requireAuth, async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || MAX_LOG_ROWS;

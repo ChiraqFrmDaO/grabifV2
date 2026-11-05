@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gebruikersbeheer - Admin</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@600;800&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #07080f;
+      --surface:  #0d0f1d;
+      --border:   rgba(148,163,184,.12);
+      --text:     #dde2ef;
+      --muted:    #64748b;
+      --accent:   #38bdf8;
+      --green:    #22c55e;
+      --red:      #ef4444;
+      --radius:   18px;
+    }
+
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px 20px 60px;
+    }
+
+    .container { max-width: 1180px; margin: 0 auto; }
+
+    header {
+      display: flex;
+      align-items: baseline;
+      gap: 18px;
+      margin-bottom: 30px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    header h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      background: linear-gradient(90deg, #00ff88, #00ccff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    header span {
+      font-size: 0.75rem;
+      color: var(--muted);
+      letter-spacing: .05em;
+    }
+
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    .section-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 18px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 11px 20px;
+      border-radius: 11px;
+      border: none;
+      font-family: 'Syne', sans-serif;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s, transform .12s;
+      white-space: nowrap;
+    }
+    .btn:hover:not(:disabled) { opacity: .85; transform: translateY(-1px); }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-primary   { background: var(--accent); color: #0b1219; }
+    .btn-secondary { background: rgba(255,255,255,.08); color: var(--text); }
+    .btn-danger    { background: var(--red);   color: #fff; }
+    .btn-sm { padding: 7px 13px; font-size: 0.8rem; }
+
+    .toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 13px 22px;
+      font-size: 0.88rem;
+      box-shadow: 0 12px 40px rgba(0,0,0,.6);
+      transition: transform .3s cubic-bezier(.22,1,.36,1), opacity .3s;
+      opacity: 0;
+      z-index: 9000;
+      pointer-events: none;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+    .toast.success { border-color: var(--green); color: var(--green); }
+    .toast.error   { border-color: var(--red);   color: var(--red);   }
+
+    .invites-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 14px;
+    }
+    .invite-card {
+      background: rgba(255,255,255,.03);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+    }
+    .invite-card .meta {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-bottom: 4px;
+      word-break: break-all;
+    }
+    .invite-card .actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .table-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>Gebruikersbeheer</h1>
+    <span>Admin Only</span>
+    <button id="backBtn" class="btn btn-secondary btn-sm" style="margin-left: auto;">← Terug</button>
+  </header>
+
+  <div class="section">
+    <div class="table-header">
+      <p class="section-title" style="margin:0;">Invites</p>
+      <button id="generateInviteBtn" class="btn btn-primary">+ Nieuwe Invite</button>
+    </div>
+    <div id="invitesList" class="invites-grid">
+      <div class="skeleton" style="height:60px;"></div>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+  'use strict';
+
+  function showToast(msg, type = 'success') {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className   = `toast ${type} show`;
+    setTimeout(() => { el.className = 'toast'; }, 3000);
+  }
+
+  document.getElementById('backBtn').addEventListener('click', () => {
+    window.location.href = '/admin';
+  });
+
+  document.getElementById('generateInviteBtn').addEventListener('click', generateInvite);
+
+  async function generateInvite() {
+    try {
+      const res = await fetch('/api/invites', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        navigator.clipboard.writeText(data.inviteUrl);
+        showToast(`Invite link gekopieerd!\n${data.inviteUrl}`, 'success');
+        loadInvites();
+      } else {
+        showToast('Invite genereren mislukt.', 'error');
+      }
+    } catch (err) {
+      showToast('Netwerkfout bij invite.', 'error');
+    }
+  }
+
+  async function loadInvites() {
+    const container = document.getElementById('invitesList');
+    
+    try {
+      const res = await fetch('/api/invites', { credentials: 'same-origin' });
+      const invites = await res.json();
+      
+      container.innerHTML = '';
+      
+      if (!invites.length) {
+        const msg = document.createElement('p');
+        msg.style.cssText = 'color:var(--muted);padding:12px;font-size:.85rem;';
+        msg.textContent = 'Geen actieve invites.';
+        container.appendChild(msg);
+        return;
+      }
+      
+      invites.forEach(invite => {
+        const card = document.createElement('div');
+        card.className = 'invite-card';
+        
+        const token = document.createElement('div');
+        token.className = 'meta';
+        token.textContent = `Token: ${invite.invite_token}`;
+        
+        const date = document.createElement('div');
+        date.className = 'meta';
+        date.textContent = `Aangemaakt: ${new Date(invite.created_at).toLocaleString('nl-NL')}`;
+        
+        const actions = document.createElement('div');
+        actions.className = 'actions';
+        
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'btn btn-secondary btn-sm';
+        copyBtn.textContent = '📋 Kopieer';
+        copyBtn.onclick = () => {
+          const url = `${window.location.origin}/register?token=${invite.invite_token}`;
+          navigator.clipboard.writeText(url);
+          showToast('Invite link gekopieerd!', 'success');
+        };
+        
+        actions.appendChild(copyBtn);
+        card.append(token, date, actions);
+        container.appendChild(card);
+      });
+    } catch (err) {
+      console.error('Invites laden mislukt:', err);
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    loadInvites();
+  });
+</script>
+</body>
+</html>
