@@ -238,9 +238,6 @@ app.use(express.urlencoded({ extended: true, limit: '16kb' }));
 
 
 
-// Session store zal later worden geïnitialiseerd na database init
-let sessionStore = null;
-
 // ── Authenticatie middleware ──────────────────────────────────────────────────
 function requireAuth(req, res, next) {
   if (req.session && req.session.authenticated) {
