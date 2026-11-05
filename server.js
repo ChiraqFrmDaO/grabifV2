@@ -2,7 +2,6 @@ const express      = require('express');
 const dotenv       = require('dotenv');
 const uaParser     = require('ua-parser-js');
 const session      = require('express-session');
-const pgSession    = require('connect-pg-simple')(session);
 const helmet       = require('helmet');
 const rateLimit    = require('express-rate-limit');
 const compression  = require('compression');
@@ -11,15 +10,20 @@ const fs           = require('fs');
 const https        = require('https');
 const crypto       = require('crypto');
 const path         = require('path');
-const { Pool }     = require('pg');
-const requestId    = require('express-request-id');
+const Database     = require('better-sqlite3');
 const cors         = require('cors');
 const Joi          = require('joi');
+const bcrypt       = require('bcrypt');
 
 dotenv.config();
 
 const app = express();
 app.set('trust proxy', 1);
+
+// ── Database Configuration ────────────────────────────────────────────────────
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'database.sqlite');
+let db = null;
+let useDb = false;
 
 // ── Custom Error Classes ──────────────────────────────────────────────────────────
 class AppError extends Error {
@@ -55,12 +59,18 @@ class NotFoundError extends AppError {
 const trackerSchema = Joi.object({
   tracker_id: Joi.string().alphanum().min(1).max(32).optional(),
   name: Joi.string().min(1).max(100).required(),
-  destination_url: Joi.string().uri({ scheme: 'https' }).required()
+  destination_url: Joi.string().uri({ scheme: ['https'] }).required()
+}).options({
+  allowUnknown: false,
+  stripUnknown: true
 });
 
 const loginSchema = Joi.object({
   username: Joi.string().min(1).max(100).required(),
   password: Joi.string().min(1).max(200).required()
+}).options({
+  allowUnknown: false,
+  stripUnknown: true
 });
 
 const geoLogSchema = Joi.object({
@@ -71,6 +81,9 @@ const geoLogSchema = Joi.object({
   isp: Joi.string().optional(),
   lat: Joi.number().min(-90).max(90).optional(),
   lon: Joi.number().min(-180).max(180).optional()
+}).options({
+  allowUnknown: false,
+  stripUnknown: true
 });
 
 // ── Response Helpers ─────────────────────────────────────────────────────────────
@@ -103,33 +116,12 @@ function errorResponse(res, error) {
   });
 }
 
-function getDbSslConfig() {
-  // Render PostgreSQL always requires SSL
-  if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('render.com')) {
-    return { rejectUnauthorized: false };
-  }
-  const value = String(process.env.DB_SSL || '').trim().toLowerCase();
-  if (['false', '0', 'no', 'off', 'disable'].includes(value)) {
-    return false;
-  }
-  return { rejectUnauthorized: false };
-}
-
-let sessionStore = null;
-try {
-  if (process.env.DATABASE_URL) {
-    sessionStore = new pgSession({
-      conObject: {
-        connectionString: process.env.DATABASE_URL,
-        ssl: getDbSslConfig()
-      },
-      tableName: 'session',
-      createTableIfMissing: true
-    });
-  }
-} catch (error) {
-  console.warn('⚠️  Session store initialization failed, using memory store:', error.message);
-}
+// ── Request ID middleware (custom to avoid vulnerable uuid dependency) ─────
+app.use((req, res, next) => {
+  req.id = crypto.randomBytes(16).toString('hex');
+  res.setHeader('X-Request-ID', req.id);
+  next();
+});
 
 // ── Security headers ──────────────────────────────────────────────────────────
 app.use(helmet({
@@ -141,24 +133,35 @@ app.use(helmet({
       styleSrc:    ["'self'", "'unsafe-inline'", 'fonts.googleapis.com', 'cdnjs.cloudflare.com'],
       styleSrcAttr: ["'unsafe-inline'"],
       fontSrc:     ["'self'", 'fonts.gstatic.com'],
-      imgSrc:      ["'self'", 'data:', '*.tile.openstreetmap.org', 'https://cdnjs.cloudflare.com'],
+      imgSrc:      ["'self'", 'data:', '*.tile.openstreetmap.org', '*.opentopomap.org', 'https://cdnjs.cloudflare.com'],
       connectSrc:  ["'self'", 'ipapi.co', 'ipwhois.app'],
       frameSrc:    ["'none'"],
       objectSrc:   ["'none'"],
+      formAction:  ["'self'"],
+      frameAncestors: ["'none'"],
+      upgradeInsecureRequests: [],
     }
   },
   crossOriginEmbedderPolicy: false,
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  },
+  noSniff: true,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  xssFilter: true,
 }));
 
-app.use(requestId());
 app.use(compression());
 
 // CORS configuration
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : '*',
+  origin: '*',
   credentials: true,
   methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  maxAge: 86400
 }));
 
 // Request logging middleware
@@ -181,9 +184,17 @@ app.use(express.json({ limit: '16kb' }));
 app.use(express.urlencoded({ extended: true, limit: '16kb' }));
 
 // ── Session management ────────────────────────────────────────────────────────
+const sessionSecret = process.env.SESSION_SECRET;
+if (!sessionSecret && process.env.NODE_ENV === 'production') {
+  console.error('❌ ERROR: SESSION_SECRET is required in production. Set it in your .env file.');
+  process.exit(1);
+}
+if (!sessionSecret) {
+  console.warn('⚠️  WARNING: No SESSION_SECRET set. Using random secret (sessions will be lost on restart).');
+}
+
 app.use(session({
-  store: sessionStore || undefined,
-  secret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
+  secret: sessionSecret || crypto.randomBytes(32).toString('hex'),
   resave: false,
   saveUninitialized: false,
   name: 'sid',
@@ -208,9 +219,33 @@ function requireAuth(req, res, next) {
   res.redirect('/login');
 }
 
+// Apply API rate limiter to all /api routes except login/logout
+app.use('/api', (req, res, next) => {
+  if (req.path === '/login' || req.path === '/logout') {
+    return next();
+  }
+  apiLimiter(req, res, next);
+});
+
 // ── Admin credentials ─────────────────────────────────────────────────────────
 const ADMIN_USER = process.env.ADMIN_USER || 'admin';
 const ADMIN_PASS = process.env.ADMIN_PASS || 'change_me';
+const ADMIN_PASS_HASH = process.env.ADMIN_PASS_HASH;
+
+// Hash password if not already hashed
+async function hashPassword(password) {
+  return await bcrypt.hash(password, 12);
+}
+
+async function verifyPassword(password, hash) {
+  // If no hash is set (legacy), compare plain text and warn
+  if (!hash && ADMIN_PASS === password) {
+    console.warn('⚠️  WARNING: Using plain text password. Set ADMIN_PASS_HASH in .env for security.');
+    return true;
+  }
+  if (!hash) return false;
+  return await bcrypt.compare(password, hash);
+}
 
 if (process.env.NODE_ENV === 'production' && (ADMIN_USER === 'admin' || ADMIN_PASS === 'change_me')) {
   console.warn('⚠️  WARNING: Using default admin credentials in production!');
@@ -223,7 +258,8 @@ const geoLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Te veel verzoeken. Probeer later opnieuw.' },
-  skip: (req) => isBotUserAgent(req.headers['user-agent'])
+  skip: (req) => isBotUserAgent(req.headers['user-agent']),
+  keyGenerator: (req) => getClientIp(req)
 });
 
 const pixelLimiter = rateLimit({
@@ -231,7 +267,8 @@ const pixelLimiter = rateLimit({
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => isBotUserAgent(req.headers['user-agent'])
+  skip: (req) => isBotUserAgent(req.headers['user-agent']),
+  keyGenerator: (req) => getClientIp(req)
 });
 
 const authLimiter = rateLimit({
@@ -239,7 +276,17 @@ const authLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Te veel login pogingen. Probeer over 15 minuten.' }
+  message: { error: 'Te veel login pogingen. Probeer over 15 minuten.' },
+  skipSuccessfulRequests: true
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Te veel API verzoeken. Probeer later opnieuw.' },
+  skip: (req) => req.session.authenticated
 });
 
 // ── Constanten ────────────────────────────────────────────────────────────────
@@ -248,14 +295,40 @@ const LOG_FILE            = path.join(__dirname, 'logs.txt');
 const DEFAULT_REDIRECT_URL = process.env.DEFAULT_REDIRECT_URL || 'https://youtube.com';
 const MAX_LOG_ROWS        = 500;
 
+// ── Simple cache ──────────────────────────────────────────────────────────────
+const cache = new Map();
+const CACHE_TTL = 30 * 1000; // 30 seconds
+
+function getCached(key) {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expires) {
+    cache.delete(key);
+    return null;
+  }
+  return entry.data;
+}
+
+function setCached(key, data, ttl = CACHE_TTL) {
+  cache.set(key, {
+    data,
+    expires: Date.now() + ttl
+  });
+}
+
+function invalidateCache(pattern) {
+  for (const key of cache.keys()) {
+    if (key.includes(pattern)) {
+      cache.delete(key);
+    }
+  }
+}
+
 // Alle paden die nooit een tracker-ID mogen zijn
 const RESERVED_IDS = new Set([
   'api', 'admin', 'favicon.ico', 'pixel', 'track',
-  'static', 'public', 'health', 'robots.txt', 'sitemap.xml'
+  'static', 'public', 'health', 'robots.txt', 'sitemap.xml', 'debug-headers'
 ]);
-
-let pool   = null;
-let useDb  = false;
 
 // ── Hulpfuncties ──────────────────────────────────────────────────────────────
 
@@ -276,9 +349,69 @@ function escapeJs(str) {
 }
 
 function getClientIp(req) {
-  const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '')
-    .split(',')[0].trim();
-  return ip.replace(/^::ffff:/, '') || 'Unknown';
+  // Try to get real IP from various headers
+  const headers = [
+    req.headers['forwarded'], // Wasmer uses this: for="[::ffff:IP]"
+    req.headers['x-forwarded-for'],
+    req.headers['x-real-ip'], 
+    req.headers['cf-connecting-ip'],
+    req.headers['x-client-ip'],
+    req.socket.remoteAddress
+  ];
+
+  for (const header of headers) {
+    if (header) {
+      let ip;
+      
+      // Parse Wasmer's forwarded header: for="[::ffff:185.182.194.243]"
+      if (typeof header === 'string' && header.includes('for=')) {
+        const match = header.match(/for="([^"]+)"/);
+        if (match) {
+          ip = match[1].replace(/^\[::ffff:/, '').replace(/\]$/, '');
+        }
+      }
+      
+      // Handle comma-separated IPs (x-forwarded-for can have multiple)
+      if (!ip) {
+        const ips = String(header).split(',').map(ip => ip.trim());
+        ip = ips[0];
+      }
+      
+      if (ip) {
+        const cleanIp = ip.replace(/^::ffff:/, '').replace(/^::1$/, '127.0.0.1');
+        
+        // Filter out private/local IPs to get the real client IP
+        if (cleanIp && 
+            cleanIp !== 'Unknown' && 
+            !cleanIp.startsWith('127.') && 
+            !cleanIp.startsWith('192.168.') && 
+            !cleanIp.startsWith('10.') &&
+            !cleanIp.startsWith('172.16.') &&
+            !cleanIp.startsWith('172.17.') &&
+            !cleanIp.startsWith('172.18.') &&
+            !cleanIp.startsWith('172.19.') &&
+            !cleanIp.startsWith('172.20.') &&
+            !cleanIp.startsWith('172.21.') &&
+            !cleanIp.startsWith('172.22.') &&
+            !cleanIp.startsWith('172.23.') &&
+            !cleanIp.startsWith('172.24.') &&
+            !cleanIp.startsWith('172.25.') &&
+            !cleanIp.startsWith('172.26.') &&
+            !cleanIp.startsWith('172.27.') &&
+            !cleanIp.startsWith('172.28.') &&
+            !cleanIp.startsWith('172.29.') &&
+            !cleanIp.startsWith('172.30.') &&
+            !cleanIp.startsWith('172.31.') &&
+            cleanIp !== 'localhost') {
+          return cleanIp;
+        }
+      }
+    }
+  }
+  
+  // If no public IP found, return the first available IP (even if local)
+  const fallbackIp = (headers[0] || headers[1] || headers[2] || headers[3] || headers[4] || '');
+  return fallbackIp.split(',')[0].trim().replace(/^::ffff:/, '') || 'Unknown';
 }
 
 function fetchJson(url) {
@@ -328,12 +461,22 @@ function isBotUserAgent(userAgent) {
     'python-requests', 'libwww-perl', 'curl', 'wget', 'httpclient', 'okhttp',
     'facebookexternalhit', 'facebot', 'discordbot', 'slackbot', 'telegrambot',
     'ahrefsbot', 'semrushbot', 'mj12bot', 'rogerbot', 'yandex', 'bingpreview',
-    'googlebot', 'bingbot', 'baiduspider', 'pinterest', 'preview'
+    'googlebot', 'bingbot', 'baiduspider', 'pinterest', 'preview',
+    'twitterbot', 'linkedinbot', 'whatsapp', 'instagram', 'facebook',
+    'dotbot', 'exabot', 'nutch', 'sogou', 'soso', 'yacy',
+    'seznambot', 'ltx71', 'gigabot', 'searchmetrics', 'linkdex',
+    'crawler', 'scout', 'scraper', 'harvest', 'extractor',
+    'headlesschrome', 'phantom', 'selenium', 'puppeteer', 'playwright',
+    'bot-', '-bot', '_bot', 'crawl-', '-crawl', 'spider-', '-spider'
   ];
   return botKeywords.some(kw => ua.includes(kw));
 }
 
 function isBotLog(log) {
+  // SQLite stores booleans as 0/1, convert to boolean
+  if (log.is_pixel !== undefined) {
+    log.is_pixel = Boolean(log.is_pixel);
+  }
   return isBotUserAgent(log.useragent) || isBotUserAgent(log.browser) || isBotUserAgent(log.os);
 }
 
@@ -354,112 +497,72 @@ function generateTrackerId() {
 
 // ── Database-initialisatie ────────────────────────────────────────────────────
 async function initDatabase() {
-  if (!process.env.DATABASE_URL) {
-    console.log('⚠️  Geen DATABASE_URL gevonden, gebruik fallback file storage.');
-    return;
-  }
-
-  const config = {
-    connectionString: process.env.DATABASE_URL,
-    ssl: getDbSslConfig(),
-    max: 20,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000,
-  };
-
   try {
-    pool = new Pool(config);
-    pool.on('error', (err) => {
-      console.error('Unexpected error on idle client', err);
-    });
+    db = new Database(DB_PATH);
+    db.pragma('journal_mode = WAL');
 
-    await pool.query('SELECT 1');
-    await pool.query(`
+    // Create trackers table
+    db.exec(`
       CREATE TABLE IF NOT EXISTS trackers (
-        tracker_id    text        PRIMARY KEY,
-        name          text        NOT NULL,
-        destination_url text      NOT NULL,
-        created_at    timestamptz NOT NULL DEFAULT now()
+        tracker_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        destination_url TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
     `);
 
+    // Add updated_at column if it doesn't exist
     try {
-      console.log("Running migration: add updated_at...");
-      await pool.query(`
-        ALTER TABLE trackers
-        ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
-      `);
-      console.log("Migration completed.");
+      db.exec(`ALTER TABLE trackers ADD COLUMN updated_at TEXT DEFAULT (datetime('now'));`);
     } catch (err) {
-      console.error("Migration failed:", err);
+      // Column already exists, ignore
     }
 
-    try {
-      await pool.query(`
-        UPDATE trackers
-        SET updated_at = created_at
-        WHERE updated_at IS NULL;
-      `);
-    } catch (err) {
-      console.error("Update migration failed:", err);
-    }
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS "session" (
-        sid varchar PRIMARY KEY NOT NULL,
-        sess json NOT NULL,
-        expire timestamptz NOT NULL
-      );
-    `);
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
-    `);
-    await pool.query(`
+    // Create logs table
+    db.exec(`
       CREATE TABLE IF NOT EXISTS logs (
-        id            serial      PRIMARY KEY,
-        tracker_id    text        NOT NULL,
-        tracker_name  text,
-        timestamp     timestamptz NOT NULL DEFAULT now(),
-        ip            text,
-        country       text,
-        city          text,
-        isp           text,
-        browser       text,
-        os            text,
-        device        text,
-        useragent     text,
-        referer       text,
-        latitude      numeric,
-        longitude     numeric,
-        is_pixel      boolean DEFAULT false
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tracker_id TEXT NOT NULL,
+        tracker_name TEXT,
+        timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+        ip TEXT,
+        country TEXT,
+        city TEXT,
+        isp TEXT,
+        browser TEXT,
+        os TEXT,
+        device TEXT,
+        useragent TEXT,
+        referer TEXT,
+        latitude REAL,
+        longitude REAL,
+        is_pixel INTEGER DEFAULT 0
       );
     `);
 
-// Voeg dit DIRECT hieronder toe
-    await pool.query(`
-      ALTER TABLE logs
-      ADD COLUMN IF NOT EXISTS latitude numeric;
-    `);
+    // Add columns if they don't exist
+    try {
+      db.exec(`ALTER TABLE logs ADD COLUMN latitude REAL;`);
+    } catch (err) {}
+    try {
+      db.exec(`ALTER TABLE logs ADD COLUMN longitude REAL;`);
+    } catch (err) {}
+    try {
+      db.exec(`ALTER TABLE logs ADD COLUMN is_pixel INTEGER DEFAULT 0;`);
+    } catch (err) {}
 
-    await pool.query(`
-      ALTER TABLE logs
-      ADD COLUMN IF NOT EXISTS longitude numeric;
-    `);
+    // Create indexes
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_logs_tracker_id ON logs(tracker_id);`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp DESC);`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_logs_ip ON logs(ip);`);
 
-    await pool.query(`
-      ALTER TABLE logs
-      ADD COLUMN IF NOT EXISTS is_pixel boolean DEFAULT false;
-    `);
-
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_logs_tracker_id ON logs(tracker_id)`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp DESC)`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_logs_ip ON logs(ip)`);
-    
     useDb = true;
-    console.log('✅ Postgres connectie actief. Opslag via database.');
+    console.log('✅ SQLite database actief. Opslag via database.');
   } catch (error) {
     console.error('❌ Database connectie mislukt. Gebruik fallback file storage.');
     console.error(error);
-    pool  = null;
+    db = null;
     useDb = false;
   }
 }
@@ -480,22 +583,26 @@ async function writeTrackersFile(trackers) {
 
 // ── Data-toegang ──────────────────────────────────────────────────────────────
 async function loadTrackers() {
+  const cacheKey = 'trackers';
+  const cached = getCached(cacheKey);
+  if (cached) return cached;
+
+  let result;
   if (useDb) {
-    const { rows } = await pool.query(
-      'SELECT tracker_id, name, destination_url, created_at FROM trackers ORDER BY created_at DESC'
-    );
-    return rows;
+    const stmt = db.prepare('SELECT tracker_id, name, destination_url, created_at FROM trackers ORDER BY created_at DESC');
+    result = stmt.all();
+  } else {
+    result = await readTrackersFile();
   }
-  return readTrackersFile();
+
+  setCached(cacheKey, result);
+  return result;
 }
 
 async function loadTrackerById(trackerId) {
   if (useDb) {
-    const { rows } = await pool.query(
-      'SELECT tracker_id, name, destination_url FROM trackers WHERE tracker_id = $1',
-      [trackerId]
-    );
-    return rows[0];
+    const stmt = db.prepare('SELECT tracker_id, name, destination_url FROM trackers WHERE tracker_id = ?');
+    return stmt.get(trackerId);
   }
   const trackers = await readTrackersFile();
   return trackers.find(t => t.tracker_id === trackerId);
@@ -503,13 +610,18 @@ async function loadTrackerById(trackerId) {
 
 async function saveTracker({ tracker_id, name, destination_url }) {
   if (useDb) {
-    await pool.query(`
-      INSERT INTO trackers (tracker_id, name, destination_url, created_at)
-      VALUES ($1, $2, $3, now())
-      ON CONFLICT (tracker_id) DO UPDATE SET
-        name            = EXCLUDED.name,
-        destination_url = EXCLUDED.destination_url;
-    `, [tracker_id, name, destination_url]);
+    const now = new Date().toISOString();
+    const stmt = db.prepare(`
+      INSERT INTO trackers (tracker_id, name, destination_url, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(tracker_id) DO UPDATE SET
+        name = excluded.name,
+        destination_url = excluded.destination_url,
+        updated_at = excluded.updated_at
+    `);
+    stmt.run(tracker_id, name, destination_url, now, now);
+    invalidateCache('summary');
+    invalidateCache('trackers');
     return;
   }
 
@@ -528,12 +640,19 @@ async function saveTracker({ tracker_id, name, destination_url }) {
     trackers.push({ tracker_id, name, destination_url, created_at: now, updated_at: now });
   }
   await writeTrackersFile(trackers);
+  invalidateCache('summary');
+  invalidateCache('trackers');
 }
 
 async function deleteTrackerById(trackerId) {
   if (useDb) {
-    await pool.query('DELETE FROM logs     WHERE tracker_id = $1', [trackerId]);
-    await pool.query('DELETE FROM trackers WHERE tracker_id = $1', [trackerId]);
+    const deleteLogs = db.prepare('DELETE FROM logs WHERE tracker_id = ?');
+    const deleteTracker = db.prepare('DELETE FROM trackers WHERE tracker_id = ?');
+    deleteLogs.run(trackerId);
+    deleteTracker.run(trackerId);
+    invalidateCache('summary');
+    invalidateCache('trackers');
+    invalidateCache('logs');
     return;
   }
 
@@ -556,34 +675,38 @@ async function deleteTrackerById(trackerId) {
   } catch {
     // LOG_FILE bestaat nog niet — geen probleem
   }
+  invalidateCache('summary');
+  invalidateCache('trackers');
+  invalidateCache('logs');
 }
 
 async function appendLog(log) {
   if (useDb) {
-    await pool.query(`
+    const stmt = db.prepare(`
       INSERT INTO logs
         (tracker_id, tracker_name, timestamp, ip, country, city, isp,
          browser, os, device, useragent, referer, latitude, longitude, is_pixel)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-    `, [
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    stmt.run(
       log.tracker_id, log.tracker_name, log.timestamp,
       log.ip, log.country, log.city, log.isp,
       log.browser, log.os, log.device, log.useragent, log.referer,
-      log.latitude, log.longitude, log.is_pixel ?? false
-    ]);
+      log.latitude, log.longitude, log.is_pixel ? 1 : 0
+    );
+    invalidateCache('summary');
+    invalidateCache('logs');
     return;
   }
   await fsp.appendFile(LOG_FILE, JSON.stringify(log) + '\n');
+  invalidateCache('summary');
+  invalidateCache('logs');
 }
 
-async function getLogs(limit = MAX_LOG_ROWS) {
+async function getLogs(limit = MAX_LOG_ROWS, offset = 0) {
   if (useDb) {
-    const query  = limit > 0
-      ? 'SELECT * FROM logs ORDER BY timestamp DESC LIMIT $1'
-      : 'SELECT * FROM logs ORDER BY timestamp DESC';
-    const { rows } = limit > 0
-      ? await pool.query(query, [limit])
-      : await pool.query(query);
+    const stmt = db.prepare('SELECT * FROM logs ORDER BY timestamp DESC LIMIT ? OFFSET ?');
+    const rows = stmt.all(limit, offset);
     return rows.filter(row => !isBotLog(row));
   }
 
@@ -593,35 +716,43 @@ async function getLogs(limit = MAX_LOG_ROWS) {
       .map(line => { try { return JSON.parse(line); } catch { return null; } })
       .filter(Boolean)
       .filter(log => !isBotLog(log));
-    return limit > 0 ? rawLogs.slice(-limit).reverse() : rawLogs.reverse();
+    const reversed = rawLogs.reverse();
+    return limit > 0 ? reversed.slice(offset, offset + limit) : reversed;
   } catch {
     return [];
   }
 }
 
 async function getSummary() {
+  const cacheKey = 'summary';
+  const cached = getCached(cacheKey);
+  if (cached) return cached;
+
+  let result;
   if (useDb) {
     // Unieke IPs efficiënt via SQL — laadt niet alles in geheugen
-    const [trackerRes, visitsRes, uniqueRes] = await Promise.all([
-      pool.query(`SELECT COUNT(*) FROM trackers`),
-      pool.query(`SELECT COUNT(*) FROM logs WHERE useragent NOT ILIKE '%bot%' AND useragent NOT ILIKE '%crawl%'`),
-      pool.query(`SELECT COUNT(DISTINCT ip) FROM logs WHERE useragent NOT ILIKE '%bot%' AND useragent NOT ILIKE '%crawl%'`),
-    ]);
-    return {
-      totalTrackers: parseInt(trackerRes.rows[0].count, 10),
-      totalVisits:   parseInt(visitsRes.rows[0].count,   10),
-      uniqueVisits:  parseInt(uniqueRes.rows[0].count,   10),
+    const trackerCount = db.prepare('SELECT COUNT(*) as count FROM trackers').get();
+    const visitCount = db.prepare("SELECT COUNT(*) as count FROM logs WHERE useragent NOT LIKE '%bot%' AND useragent NOT LIKE '%crawl%'").get();
+    const uniqueCount = db.prepare("SELECT COUNT(DISTINCT ip) as count FROM logs WHERE useragent NOT LIKE '%bot%' AND useragent NOT LIKE '%crawl%'").get();
+
+    result = {
+      totalTrackers: trackerCount.count,
+      totalVisits:   visitCount.count,
+      uniqueVisits:  uniqueCount.count,
+    };
+  } else {
+    const trackers   = await readTrackersFile();
+    const logs       = await getLogs(0);
+    const uniqueIps  = new Set(logs.map(l => l.ip).filter(Boolean));
+    result = {
+      totalTrackers: trackers.length,
+      totalVisits:   logs.length,
+      uniqueVisits:  uniqueIps.size
     };
   }
 
-  const trackers   = await readTrackersFile();
-  const logs       = await getLogs(0);
-  const uniqueIps  = new Set(logs.map(l => l.ip).filter(Boolean));
-  return {
-    totalTrackers: trackers.length,
-    totalVisits:   logs.length,
-    uniqueVisits:  uniqueIps.size
-  };
+  setCached(cacheKey, result);
+  return result;
 }
 
 // ── Routes ────────────────────────────────────────────────────────────────────
@@ -697,8 +828,12 @@ app.get('/pixel/:trackerId.png', pixelLimiter, async (req, res) => {
 
 // Geo-log (client-side geo → server)
 app.post('/api/log-geo', geoLimiter, async (req, res) => {
-  console.log(req.body);
-  const { tracker_id, ip: clientIp, country, city, isp, lat, lon } = req.body;
+  const { error, value } = geoLogSchema.validate(req.body);
+  if (error) {
+    return res.status(400).json({ error: 'Invalid geo data' });
+  }
+
+  const { tracker_id, ip: clientIp, country, city, isp, lat, lon } = value;
   if (!tracker_id) return res.status(400).json({ error: 'No tracker_id' });
 
   try {
@@ -777,7 +912,6 @@ app.post('/api/save-tracker', requireAuth, async (req, res) => {
     }
 
     await saveTracker({ tracker_id, name, destination_url });
-    console.log(`✅ Tracker opgeslagen: ${tracker_id}`);
     successResponse(res, { tracker_id, link: `/${tracker_id}` }, 'Tracker created successfully');
   } catch (error) {
     errorResponse(res, error);
@@ -798,7 +932,6 @@ app.post('/api/delete-tracker', requireAuth, async (req, res) => {
 
   try {
     await deleteTrackerById(tracker_id);
-    console.log(`🗑️  Tracker verwijderd: ${tracker_id}`);
     res.json({ success: true });
   } catch (error) {
     console.error('Delete tracker error:', error);
@@ -819,11 +952,16 @@ app.get('/login', (req, res) => {
   res.sendFile(path.join(__dirname, 'views/login.html'));
 });
 
-app.post('/api/login', authLimiter, (req, res) => {
-  const { username, password } = req.body;
+app.post('/api/login', authLimiter, async (req, res) => {
+  const { error, value } = loginSchema.validate(req.body);
+  if (error) {
+    return res.status(400).json({ error: 'Invalid credentials format' });
+  }
+
+  const { username, password } = value;
   const isJson = req.headers.accept?.includes('application/json') || req.headers['content-type']?.includes('application/json');
 
-  if (username === ADMIN_USER && password === ADMIN_PASS) {
+  if (username === ADMIN_USER && await verifyPassword(password, ADMIN_PASS_HASH)) {
     req.session.authenticated = true;
     req.session.user = username;
     if (isJson) {
@@ -851,14 +989,28 @@ app.get('/admin', requireAuth, (req, res) => {
 
 app.get('/api/logs', requireAuth, async (req, res) => {
   try {
-    const logs     = await getLogs();
+    const limit = parseInt(req.query.limit) || MAX_LOG_ROWS;
+    const offset = parseInt(req.query.offset) || 0;
+
+    if (limit > 1000) {
+      return res.status(400).json({ error: 'Limit mag maximaal 1000 zijn.' });
+    }
+
+    const logs     = await getLogs(limit, offset);
     const trackers = useDb ? [] : await readTrackersFile();
     const tMap     = trackers.reduce((acc, t) => { acc[t.tracker_id] = t; return acc; }, {});
 
-    res.json(logs.map(log => ({
-      ...log,
-      name: log.tracker_name || tMap[log.tracker_id]?.name || 'Onbekend'
-    })));
+    res.json({
+      data: logs.map(log => ({
+        ...log,
+        name: log.tracker_name || tMap[log.tracker_id]?.name || 'Onbekend'
+      })),
+      pagination: {
+        limit,
+        offset,
+        hasMore: logs.length === limit
+      }
+    });
   } catch (error) {
     console.error('Load logs error:', error);
     res.status(500).json({ error: 'Load failed' });
@@ -878,6 +1030,21 @@ app.get('/health', (req, res) => {
     status: 'ok',
     database: useDb ? 'connected' : 'fallback',
     timestamp: new Date().toISOString()
+  });
+});
+
+// Debug endpoint to see all headers
+app.get('/debug-headers', (req, res) => {
+  const forwarded = req.headers['forwarded'];
+  const xForwardedFor = req.headers['x-forwarded-for'];
+  
+  res.json({
+    headers: req.headers,
+    forwarded: forwarded,
+    xForwardedFor: xForwardedFor,
+    parsedForwarded: forwarded ? forwarded.match(/for="([^"]+)"/) : null,
+    ip: getClientIp(req),
+    socketAddress: req.socket.remoteAddress
   });
 });
 
@@ -927,12 +1094,12 @@ app.use((err, req, res, next) => {
 // ── Graceful shutdown ───────────────────────────────────────────────────────────
 const gracefulShutdown = async (signal) => {
   console.log(`\n${signal} received. Starting graceful shutdown...`);
-  
-  if (pool) {
-    console.log('Closing database pool...');
-    await pool.end();
+
+  if (db) {
+    console.log('Closing database connection...');
+    db.close();
   }
-  
+
   process.exit(0);
 };
 

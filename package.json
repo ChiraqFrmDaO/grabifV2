@@ -3,20 +3,24 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "start:direct": "node server.js",
+    "hash-password": "node hash-password.js"
   },
   "dependencies": {
-    "express": "^4.19.2",
-    "dotenv": "^16.4.5",
-    "ua-parser-js": "^1.0.39",
-    "pg": "^8.11.3",
-    "express-session": "^1.18.0",
-    "connect-pg-simple": "^9.0.1",
-    "helmet": "^7.1.0",
-    "express-rate-limit": "^7.1.5",
+    "bcrypt": "^6.0.0",
+    "better-sqlite3": "^13.0.3",
+    "better-sqlite3-session-store": "^0.1.0",
     "compression": "^1.7.4",
-    "express-request-id": "^1.4.0",
+    "connect-pg-simple": "^9.0.1",
     "cors": "^2.8.5",
-    "joi": "^17.13.3"
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.1.5",
+    "express-session": "^1.18.0",
+    "helmet": "^7.1.0",
+    "joi": "^17.13.3",
+    "pg": "^8.11.3",
+    "ua-parser-js": "^1.0.39"
   }
 }

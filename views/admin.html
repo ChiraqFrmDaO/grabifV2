@@ -510,9 +510,6 @@ async function loadTrackersList() {
 
     const response = await res.json();
 
-    console.log("TRACKERS RAW RESPONSE:", response);
-    console.log("TRACKERS DATA:", response.data);
-
     const trackers = Array.isArray(response.data)
       ? response.data
       : [];
@@ -629,8 +626,9 @@ async function loadTrackersList() {
     tbody.innerHTML = '<tr><td colspan="8"><div class="skeleton"></div></td></tr>';
 
     try {
-      const res  = await fetch('/api/logs', { credentials: 'same-origin' });
-      const logs = await res.json();
+      const res  = await fetch('/api/logs?limit=500&offset=0', { credentials: 'same-origin' });
+      const response = await res.json();
+      const logs = response.data || response;
       allLogs    = logs;
 
       tbody.innerHTML = '';
@@ -670,7 +668,7 @@ async function loadTrackersList() {
         const btn      = document.createElement('button');
         btn.className  = 'btn btn-secondary btn-sm';
         btn.textContent = '📍 Details';
-        btn.addEventListener('click', () => showLogDetails(idx));
+        btn.addEventListener('click', () => showLogDetails(log));
         tdAction.appendChild(btn);
         row.appendChild(tdAction);
 
@@ -693,8 +691,7 @@ async function loadTrackersList() {
   }
 
   // ── Log details (XSS-veilig via DOM-methoden) ──────────────────────────────
-  function showLogDetails(idx) {
-    const log       = allLogs[idx];
+  function showLogDetails(log) {
     const hasCoords = log.latitude && log.longitude;
 
     document.getElementById('detailModalTitle').textContent = `Log — ${log.name || log.tracker_id}`;
@@ -754,7 +751,10 @@ async function loadTrackersList() {
       setTimeout(() => {
         if (currentMap) { currentMap.remove(); currentMap = null; }
         currentMap = L.map('map').setView([+log.latitude, +log.longitude], 10);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(currentMap);
+        L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+          attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a>',
+          maxZoom: 17
+        }).addTo(currentMap);
         L.marker([+log.latitude, +log.longitude])
           .addTo(currentMap)
           .bindPopup(esc(log.city) + ', ' + esc(log.country));
@@ -765,14 +765,13 @@ async function loadTrackersList() {
 
   function showTrackerLogDetails(trackerId, trackerName) {
     // Gebruik al geladen logs — geen extra fetch
-    const idx = allLogs.findIndex(l => l.tracker_id === trackerId);
-    if (idx >= 0) {
-      showLogDetails(idx);
+    const log = allLogs.find(l => l.tracker_id === trackerId);
+    if (log) {
+      showLogDetails(log);
       return;
     }
 
     // Geen logs voor deze tracker
-    document.getElementById('detailModalTitle').textContent = 'Log details';
     const content = document.getElementById('detailContent');
     content.innerHTML = '';
 
@@ -794,6 +793,7 @@ async function loadTrackersList() {
     msg.textContent = 'Geen logs gevonden voor deze tracker.';
 
     content.append(grid, msg);
+    document.getElementById('detailModalTitle').textContent = 'Log details';
     document.getElementById('detailModal').classList.add('active');
   }
 

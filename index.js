@@ -15,15 +15,22 @@ const https = require('https');
 const crypto = require('crypto');
 const path = require('path');
 const { Pool } = require('pg');
-const requestId = require('express-request-id');
 const cors = require('cors');
 const Joi = require('joi');
+const bcrypt = require('bcrypt');
 
 dotenv.config();
 
 const app = express();
 
 app.set('trust proxy', 1);
+
+// Custom request ID middleware (no vulnerable uuid dependency)
+app.use((req, res, next) => {
+  req.id = crypto.randomBytes(16).toString('hex');
+  res.setHeader('X-Request-ID', req.id);
+  next();
+});
 
 
 // ============================================================
@@ -67,6 +74,9 @@ const trackerSchema = Joi.object({
             scheme: ['https']
         })
         .required()
+}).options({
+    allowUnknown: false,
+    stripUnknown: true
 });
 
 
@@ -298,8 +308,6 @@ app.use(helmet({
     crossOriginEmbedderPolicy: false
 }));
 
-app.use(requestId());
-
 app.use(compression());
 
 
@@ -404,9 +412,23 @@ app.use(session({
 const ADMIN_USER =
     process.env.ADMIN_USER || 'admin';
 
-
 const ADMIN_PASS =
     process.env.ADMIN_PASS || 'change_me';
+
+const ADMIN_PASS_HASH = process.env.ADMIN_PASS_HASH;
+
+async function hashPassword(password) {
+  return await bcrypt.hash(password, 12);
+}
+
+async function verifyPassword(password, hash) {
+  if (!hash && ADMIN_PASS === password) {
+    console.warn('⚠️  WARNING: Using plain text password. Set ADMIN_PASS_HASH in .env for security.');
+    return true;
+  }
+  if (!hash) return false;
+  return await bcrypt.compare(password, hash);
+}
 
 
 
@@ -954,19 +976,27 @@ app.get('/login',(req,res)=>{
 app.post(
 '/api/login',
 authLimiter,
-(req,res)=>{
+async(req,res)=>{
 
+    const { error, value } = Joi.object({
+        username: Joi.string().min(1).max(100).required(),
+        password: Joi.string().min(1).max(200).required()
+    }).options({ allowUnknown: false, stripUnknown: true }).validate(req.body);
+
+    if (error) {
+        return res.status(400).json({ error: 'Invalid credentials format' });
+    }
 
     const {
         username,
         password
-    } = req.body;
+    } = value;
 
 
 
     if(
         username === ADMIN_USER &&
-        password === ADMIN_PASS
+        await verifyPassword(password, ADMIN_PASS_HASH)
     ){
 
         req.session.authenticated = true;

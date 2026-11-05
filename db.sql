@@ -1,8 +1,5 @@
-CREATE DATABASE ip_logger;
-USE ip_logger;
-
 CREATE TABLE logs (
-  id INT AUTO_INCREMENT PRIMARY KEY,
+  id SERIAL PRIMARY KEY,
   tracker_id VARCHAR(50) NOT NULL,
   ip VARCHAR(45) NOT NULL,
   country VARCHAR(100),
@@ -13,5 +10,5 @@ CREATE TABLE logs (
   device VARCHAR(50),
   useragent TEXT,
   referer TEXT,
-  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+  timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

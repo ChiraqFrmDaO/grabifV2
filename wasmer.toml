@@ -1,0 +1,11 @@
+[package]
+name = "grapif-master"
+version = "1.0.0"
+description = "IP Logger Application"
+
+[[bin]]
+name = "grapif-master"
+command = ["node", "server.js"]
+
+[dependencies]
+node = "wasmer/edgejs-quickjs@=0.2.0"
