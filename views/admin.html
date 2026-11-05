@@ -393,7 +393,7 @@
   let currentMap = null;
 
   // ── Beveiliging: escaping voor HTML-output ─────────────────────────────────
-  function esc(str) {
+  function escapeHtml(str) {
     return String(str ?? '')
       .replace(/&/g,  '&amp;')
       .replace(/</g,  '&lt;')
@@ -796,7 +796,7 @@ async function loadTrackersList() {
         }).addTo(currentMap);
         L.marker([+log.latitude, +log.longitude])
           .addTo(currentMap)
-          .bindPopup(esc(log.city) + ', ' + esc(log.country));
+          .bindPopup(escapeHtml(log.city) + ', ' + escapeHtml(log.country));
         currentMap.invalidateSize();
       }, 150);
     }
