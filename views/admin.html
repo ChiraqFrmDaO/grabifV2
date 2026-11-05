@@ -528,6 +528,7 @@ async function loadTrackersList() {
     trackers.forEach(tracker => {
 
       const url = `${window.location.origin}/${tracker.tracker_id}`;
+      const managementUrl = `${window.location.origin}/manage/${tracker.management_key}`;
 
       const card = document.createElement('div');
       card.className = 'tracker-card';
@@ -544,14 +545,50 @@ async function loadTrackersList() {
 
       const dest = document.createElement('div');
       dest.className = 'meta';
-      dest.textContent =
-        `Bestemming: ${tracker.destination_url}`;
+      dest.innerHTML = `Bestemming: ${escapeHtml(tracker.destination_url)}`;
+
+      // Kopieer knop voor bestemming
+      const destCopy = document.createElement('button');
+      destCopy.className = 'btn btn-secondary btn-sm';
+      destCopy.textContent = '📋';
+      destCopy.style.marginLeft = '8px';
+      destCopy.onclick = () => {
+        navigator.clipboard.writeText(tracker.destination_url);
+        showToast('Bestemming gekopieerd!', 'success');
+      };
+      dest.appendChild(destCopy);
 
 
       const link = document.createElement('div');
       link.className = 'meta';
-      link.textContent =
-        `Link: ${url}`;
+      link.innerHTML = `Link: <a href="${url}" target="_blank">${escapeHtml(url)}</a>`;
+
+      // Kopieer knop voor link
+      const linkCopy = document.createElement('button');
+      linkCopy.className = 'btn btn-secondary btn-sm';
+      linkCopy.textContent = '📋';
+      linkCopy.style.marginLeft = '8px';
+      linkCopy.onclick = () => {
+        navigator.clipboard.writeText(url);
+        showToast('Link gekopieerd!', 'success');
+      };
+      link.appendChild(linkCopy);
+
+
+      const managementLink = document.createElement('div');
+      managementLink.className = 'meta';
+      managementLink.innerHTML = `Management: <a href="${managementUrl}" target="_blank">${escapeHtml(managementUrl)}</a>`;
+
+      // Kopieer knop voor management link
+      const mgmtCopy = document.createElement('button');
+      mgmtCopy.className = 'btn btn-secondary btn-sm';
+      mgmtCopy.textContent = '📋';
+      mgmtCopy.style.marginLeft = '8px';
+      mgmtCopy.onclick = () => {
+        navigator.clipboard.writeText(managementUrl);
+        showToast('Management link gekopieerd!', 'success');
+      };
+      managementLink.appendChild(mgmtCopy);
 
 
       const actions = document.createElement('div');

@@ -555,6 +555,7 @@ async function initDatabase() {
           tracker_id TEXT PRIMARY KEY,
           name TEXT NOT NULL,
           destination_url TEXT NOT NULL,
+          management_key TEXT UNIQUE,
           created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
           updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
         );
@@ -563,6 +564,11 @@ async function initDatabase() {
       // Add updated_at column if it doesn't exist
       try {
         await pool.query(`ALTER TABLE trackers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();`);
+      } catch (err) {}
+
+      // Add management_key column if it doesn't exist
+      try {
+        await pool.query(`ALTER TABLE trackers ADD COLUMN IF NOT EXISTS management_key TEXT UNIQUE;`);
       } catch (err) {}
 
       // Create logs table
@@ -625,6 +631,7 @@ async function initDatabase() {
           tracker_id TEXT PRIMARY KEY,
           name TEXT NOT NULL,
           destination_url TEXT NOT NULL,
+          management_key TEXT UNIQUE,
           created_at TEXT NOT NULL DEFAULT (datetime('now')),
           updated_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
@@ -633,6 +640,11 @@ async function initDatabase() {
       // Add updated_at column if it doesn't exist
       try {
         db.exec(`ALTER TABLE trackers ADD COLUMN updated_at TEXT DEFAULT (datetime('now'));`);
+      } catch (err) {}
+
+      // Add management_key column if it doesn't exist
+      try {
+        db.exec(`ALTER TABLE trackers ADD COLUMN management_key TEXT UNIQUE;`);
       } catch (err) {}
 
       // Create logs table
@@ -736,27 +748,29 @@ async function loadTrackerById(trackerId) {
 }
 
 async function saveTracker({ tracker_id, name, destination_url }) {
+  const management_key = crypto.randomBytes(32).toString('hex');
+
   if (useDb) {
     if (usePostgres) {
       await pool.query(`
-        INSERT INTO trackers (tracker_id, name, destination_url, created_at, updated_at)
-        VALUES ($1, $2, $3, now(), now())
+        INSERT INTO trackers (tracker_id, name, destination_url, management_key, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, now(), now())
         ON CONFLICT (tracker_id) DO UPDATE SET
           name = EXCLUDED.name,
           destination_url = EXCLUDED.destination_url,
           updated_at = now()
-      `, [tracker_id, name, destination_url]);
+      `, [tracker_id, name, destination_url, management_key]);
     } else {
       const now = new Date().toISOString();
       const stmt = db.prepare(`
-        INSERT INTO trackers (tracker_id, name, destination_url, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO trackers (tracker_id, name, destination_url, management_key, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(tracker_id) DO UPDATE SET
           name = excluded.name,
           destination_url = excluded.destination_url,
           updated_at = excluded.updated_at
       `);
-      stmt.run(tracker_id, name, destination_url, now, now);
+      stmt.run(tracker_id, name, destination_url, management_key, now, now);
     }
     invalidateCache('summary');
     invalidateCache('trackers');
@@ -775,7 +789,7 @@ async function saveTracker({ tracker_id, name, destination_url }) {
       updated_at: now
     };
   } else {
-    trackers.push({ tracker_id, name, destination_url, created_at: now, updated_at: now });
+    trackers.push({ tracker_id, name, destination_url, management_key, created_at: now, updated_at: now });
   }
   await writeTrackersFile(trackers);
   invalidateCache('summary');
@@ -1196,6 +1210,99 @@ app.get('/:trackerId', async (req, res, next) => {
   const trackerId = req.params.trackerId;
   if (RESERVED_IDS.has(trackerId.toLowerCase())) return next();
   await handleTrackerRedirect(trackerId, res);
+});
+
+// Management link - access tracker settings via management key
+app.get('/manage/:managementKey', async (req, res) => {
+  const { managementKey } = req.params;
+
+  try {
+    let tracker;
+    if (useDb) {
+      if (usePostgres) {
+        const { rows } = await pool.query('SELECT * FROM trackers WHERE management_key = $1', [managementKey]);
+        tracker = rows[0];
+      } else {
+        const stmt = db.prepare('SELECT * FROM trackers WHERE management_key = ?');
+        tracker = stmt.get(managementKey);
+      }
+    } else {
+      const trackers = await readTrackersFile();
+      tracker = trackers.find(t => t.management_key === managementKey);
+    }
+
+    if (!tracker) {
+      return res.status(404).send('Ongeldige management link');
+    }
+
+    // Return management page
+    const html = await fsp.readFile(path.join(__dirname, 'views', 'manage.html'), 'utf8');
+    const safeHtml = html
+      .replace('{{TRACKER_ID}}', escapeHtml(tracker.tracker_id))
+      .replace('{{TRACKER_NAME}}', escapeHtml(tracker.name))
+      .replace('{{DESTINATION_URL}}', escapeHtml(tracker.destination_url))
+      .replace('{{MANAGEMENT_KEY}}', escapeHtml(managementKey));
+    res.send(safeHtml);
+  } catch (error) {
+    console.error('Management link error:', error);
+    res.status(500).send('Fout bij laden tracker');
+  }
+});
+
+// API endpoint to update tracker via management key
+app.post('/api/manage/:managementKey', async (req, res) => {
+  const { managementKey } = req.params;
+  const { name, destination_url } = req.body;
+
+  try {
+    const { error, value } = trackerSchema.validate({ name, destination_url });
+    if (error) {
+      return res.status(400).json({ error: 'Invalid input' });
+    }
+
+    let tracker;
+    if (useDb) {
+      if (usePostgres) {
+        await pool.query(`
+          UPDATE trackers
+          SET name = $1, destination_url = $2, updated_at = now()
+          WHERE management_key = $3
+        `, [value.name, value.destination_url, managementKey]);
+        const { rows } = await pool.query('SELECT * FROM trackers WHERE management_key = $1', [managementKey]);
+        tracker = rows[0];
+      } else {
+        const stmt = db.prepare(`
+          UPDATE trackers
+          SET name = ?, destination_url = ?, updated_at = datetime('now')
+          WHERE management_key = ?
+        `);
+        stmt.run(value.name, value.destination_url, managementKey);
+        const getStmt = db.prepare('SELECT * FROM trackers WHERE management_key = ?');
+        tracker = getStmt.get(managementKey);
+      }
+    } else {
+      const trackers = await readTrackersFile();
+      const idx = trackers.findIndex(t => t.management_key === managementKey);
+      if (idx >= 0) {
+        trackers[idx] = {
+          ...trackers[idx],
+          name: value.name,
+          destination_url: value.destination_url,
+          updated_at: new Date().toISOString()
+        };
+        await writeTrackersFile(trackers);
+        tracker = trackers[idx];
+      }
+    }
+
+    invalidateCache('summary');
+    invalidateCache('trackers');
+
+    res.json({ success: true, tracker });
+  } catch (error) {
+    console.error('Management update error:', error);
+    res.status(500).json({ error: 'Update failed' });
+  }
 });
 
 // Health check endpoint
