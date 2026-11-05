@@ -205,6 +205,15 @@
 
   <div class="section">
     <div class="table-header">
+      <p class="section-title" style="margin:0;">Users</p>
+    </div>
+    <div id="usersList" class="invites-grid">
+      <div class="skeleton" style="height:60px;"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="table-header">
       <p class="section-title" style="margin:0;">Invites</p>
       <button id="generateInviteBtn" class="btn btn-primary">+ Nieuwe Invite</button>
     </div>
@@ -336,8 +345,81 @@
     }
   }
 
+  async function loadUsers() {
+    const container = document.getElementById('usersList');
+
+    try {
+      const res = await fetch('/api/users', { credentials: 'same-origin' });
+      const users = await res.json();
+
+      container.innerHTML = '';
+
+      if (!users.length) {
+        const msg = document.createElement('p');
+        msg.style.cssText = 'color:var(--muted);padding:12px;font-size:.85rem;';
+        msg.textContent = 'Geen users gevonden.';
+        container.appendChild(msg);
+        return;
+      }
+
+      users.forEach(user => {
+        const card = document.createElement('div');
+        card.className = 'invite-card';
+
+        const username = document.createElement('div');
+        username.className = 'meta';
+        username.textContent = `User: ${user.username}`;
+
+        const email = document.createElement('div');
+        email.className = 'meta';
+        email.textContent = `Email: ${user.email}`;
+
+        const role = document.createElement('div');
+        role.className = 'meta';
+        role.textContent = `Role: ${user.role}`;
+
+        const actions = document.createElement('div');
+        actions.className = 'actions';
+
+        const toggleRoleBtn = document.createElement('button');
+        toggleRoleBtn.className = 'btn btn-secondary btn-sm';
+        toggleRoleBtn.textContent = user.role === 'admin' ? '↓ Make User' : '↑ Make Admin';
+        toggleRoleBtn.onclick = () => toggleUserRole(user.username, user.role);
+
+        actions.appendChild(toggleRoleBtn);
+        card.append(username, email, role, actions);
+        container.appendChild(card);
+      });
+    } catch (err) {
+      console.error('Users laden mislukt:', err);
+    }
+  }
+
+  async function toggleUserRole(username, currentRole) {
+    const newRole = currentRole === 'admin' ? 'user' : 'admin';
+    try {
+      const res = await fetch('/api/users/role', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, role: newRole })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        showToast(`User "${username}" is nu ${newRole}!`, 'success');
+        loadUsers();
+      } else {
+        showToast('Role wijzigen mislukt.', 'error');
+      }
+    } catch (err) {
+      showToast('Netwerkfout bij role wijzigen.', 'error');
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     loadUserInfo();
+    loadUsers();
     loadInvites();
   });
 </script>

@@ -1434,6 +1434,50 @@ app.get('/api/invites', requireAdmin, async (req, res) => {
   }
 });
 
+// List users
+app.get('/api/users', requireAdmin, async (req, res) => {
+  try {
+    let users = [];
+    if (useDb) {
+      if (usePostgres) {
+        const { rows } = await pool.query(`SELECT username, email, role, created_at FROM users WHERE username != 'pending'`);
+        users = rows;
+      } else {
+        const stmt = db.prepare(`SELECT username, email, role, created_at FROM users WHERE username != 'pending'`);
+        users = stmt.all();
+      }
+    }
+    res.json(users);
+  } catch (error) {
+    console.error('List users error:', error);
+    res.status(500).json({ error: 'Failed to list users' });
+  }
+});
+
+// Change user role
+app.post('/api/users/role', requireAdmin, async (req, res) => {
+  const { username, role } = req.body;
+
+  if (!username || !role || (role !== 'admin' && role !== 'user')) {
+    return res.status(400).json({ error: 'Invalid request' });
+  }
+
+  try {
+    if (useDb) {
+      if (usePostgres) {
+        await pool.query(`UPDATE users SET role = $1 WHERE username = $2`, [role, username]);
+      } else {
+        const stmt = db.prepare(`UPDATE users SET role = ? WHERE username = ?`);
+        stmt.run(role, username);
+      }
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Change role error:', error);
+    res.status(500).json({ error: 'Failed to change role' });
+  }
+});
+
 // Registration with invite token
 app.post('/api/register', async (req, res) => {
   const { username, email, password, inviteToken } = req.body;
