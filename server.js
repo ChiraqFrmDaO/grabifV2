@@ -260,7 +260,7 @@ function requireAdmin(req, res, next) {
     return res.status(403).json({ error: 'Alleen admins hebben toegang.' });
   }
 
-  res.redirect('/admin');
+  res.redirect('/dashboard');
 }
 
 // Apply API rate limiter to all /api routes except login/logout
@@ -1223,7 +1223,11 @@ app.post('/api/login', authLimiter, async (req, res) => {
     if (isJson) {
       return res.json({ success: true });
     }
-    return res.redirect('/admin');
+    // Redirect to dashboard, or admin page if admin
+    if (user.role === 'admin') {
+      return res.redirect('/admin');
+    }
+    return res.redirect('/dashboard');
   }
 
   if (isJson) {
@@ -1247,13 +1251,13 @@ app.get('/api/user', requireAuth, (req, res) => {
   });
 });
 
-app.get('/admin', requireAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, 'views', 'admin.html'));
+app.get('/dashboard', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'views', 'dashboard.html'));
 });
 
-// Users management page (admin only)
-app.get('/users', requireAdmin, (req, res) => {
-  res.sendFile(path.join(__dirname, 'views', 'users.html'));
+// Admin page (admin only - user management, invites)
+app.get('/admin', requireAdmin, (req, res) => {
+  res.sendFile(path.join(__dirname, 'views', 'admin.html'));
 });
 
 app.get('/api/logs', requireAuth, async (req, res) => {

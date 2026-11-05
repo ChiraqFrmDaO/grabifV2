@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>𝐑𝟑𝐃𝐈𝐑𝟑𝐂𝐓 — Tracker Dashboard</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@600;800&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #07080f;
+      --surface:  #0d0f1d;
+      --border:   rgba(148,163,184,.12);
+      --text:     #dde2ef;
+      --muted:    #64748b;
+      --accent:   #38bdf8;
+      --green:    #22c55e;
+      --red:      #ef4444;
+      --radius:   18px;
+    }
+
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px 20px 60px;
+    }
+
+    /* ── Layout ─────────────────────────────── */
+    .container { max-width: 1180px; margin: 0 auto; }
+
+    header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 30px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    header h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      background: linear-gradient(90deg, #00ff88, #00ccff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    header span {
+      font-size: 0.75rem;
+      color: var(--muted);
+      letter-spacing: .05em;
+    }
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .user-badge {
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      border-radius: 10px;
+      padding: 8px 14px;
+      font-size: 0.85rem;
+      color: var(--text);
+      white-space: nowrap;
+    }
+    .user-badge .role {
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.7rem;
+      margin-left: 6px;
+      padding: 2px 6px;
+      background: var(--accent);
+      color: #0b1219;
+      border-radius: 4px;
+    }
+    .logout-btn {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: var(--red);
+      padding: 8px 14px;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .logout-btn:hover {
+      background: rgba(239, 68, 68, 0.25);
+    }
+
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    .section-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 18px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    /* ── Stats ──────────────────────────────── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    .stat-card {
+      background: rgba(255,255,255,.03);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      text-align: center;
+    }
+    .stat-card strong {
+      display: block;
+      font-family: 'Syne', sans-serif;
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+    .stat-card span { font-size: 0.78rem; color: var(--muted); letter-spacing: .05em; text-transform: uppercase; }
+
+    /* ── Form ───────────────────────────────── */
+    .field { margin-bottom: 14px; }
+    label { display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 6px; letter-spacing: .05em; text-transform: uppercase; }
+    input, select {
+      width: 100%;
+      padding: 12px 14px;
+      background: rgba(255,255,255,.04);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.88rem;
+      outline: none;
+      transition: border-color .15s;
+    }
+    input:focus, select:focus { border-color: var(--accent); }
+    select option { background: #0d0f1d; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 11px 20px;
+      border-radius: 11px;
+      border: none;
+      font-family: 'Syne', sans-serif;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s, transform .12s;
+      white-space: nowrap;
+    }
+    .btn:hover:not(:disabled) { opacity: .85; transform: translateY(-1px); }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-primary   { background: var(--accent); color: #0b1219; }
+    .btn-secondary { background: rgba(255,255,255,.08); color: var(--text); }
+    .btn-danger    { background: var(--red);   color: #fff; }
+    .btn-sm { padding: 7px 13px; font-size: 0.8rem; }
+
+    /* Inline feedback (vervangt alert) */
+    .toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 13px 22px;
+      font-size: 0.88rem;
+      box-shadow: 0 12px 40px rgba(0,0,0,.6);
+      transition: transform .3s cubic-bezier(.22,1,.36,1), opacity .3s;
+      opacity: 0;
+      z-index: 9000;
+      pointer-events: none;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+    .toast.success { border-color: var(--green); color: var(--green); }
+    .toast.error   { border-color: var(--red);   color: var(--red);   }
+
+    /* Resultaat na aanmaken link */
+    #result {
+      margin-top: 16px;
+      padding: 14px;
+      background: rgba(56,189,248,.07);
+      border: 1px solid rgba(56,189,248,.2);
+      border-radius: 12px;
+      font-size: 0.82rem;
+      word-break: break-all;
+      display: none;
+    }
+    #result a { color: var(--accent); }
+    #result .copy-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+    #result .copy-row input { flex: 1; font-size: 0.8rem; }
+    #copyFeedback { font-size: 0.75rem; color: var(--green); display: none; }
+
+    /* ── Dashboard grid ─────────────────────── */
+    .dash-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+    @media (max-width: 760px) {
+      .dash-grid { grid-template-columns: 1fr; }
+      .stats-grid { grid-template-columns: 1fr 1fr; }
+    }
+
+    /* ── Trackers grid ──────────────────────── */
+    .trackers-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 14px;
+    }
+    .tracker-card {
+      background: rgba(255,255,255,.03);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+    }
+    .tracker-card h3 { font-family: 'Syne', sans-serif; font-size: 0.95rem; margin-bottom: 10px; color: var(--text); }
+    .tracker-card .meta {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-bottom: 4px;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+    .tracker-card .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+
+    /* ── Table ──────────────────────────────── */
+    .table-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+    .table-wrapper { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 760px;
+      font-size: 0.82rem;
+    }
+    th {
+      text-align: left;
+      padding: 10px 12px;
+      color: var(--muted);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      border-bottom: 1px solid var(--border);
+      font-weight: 400;
+    }
+    td {
+      padding: 11px 12px;
+      border-bottom: 1px solid rgba(148,163,184,.07);
+      vertical-align: middle;
+      color: var(--text);
+    }
+    tr:last-child td { border-bottom: none; }
+
+    /* Laadindicatoren */
+    .skeleton {
+      background: linear-gradient(90deg, rgba(255,255,255,.04) 25%, rgba(255,255,255,.08) 50%, rgba(255,255,255,.04) 75%);
+      background-size: 400% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 6px;
+      height: 16px;
+    }
+    @keyframes shimmer { to { background-position: -400% 0; } }
+
+    /* ── Modal ──────────────────────────────── */
+    .modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(7,8,15,.93);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .modal.active { display: flex; }
+    .modal-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      width: 100%;
+      max-width: 860px;
+      max-height: 92vh;
+      overflow-y: auto;
+      box-shadow: 0 32px 80px rgba(0,0,0,.7);
+    }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; }
+    .modal-header h2 { font-family: 'Syne', sans-serif; font-size: 1.25rem; color: var(--accent); }
+    .detail-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 18px; }
+    @media (max-width: 600px) { .detail-grid { grid-template-columns: 1fr; } }
+    .detail-item { background: rgba(255,255,255,.04); padding: 14px; border-radius: 12px; font-size: 0.82rem; line-height: 1.6; }
+    .detail-item strong { display: block; color: var(--accent); font-size: 0.72rem; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+    #map { width: 100%; height: 340px; border-radius: 12px; margin-top: 16px; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div>
+      <h1>R3DIR3Ct</h1>
+      <span>IP Tracking Dashboard</span>
+    </div>
+    <div class="user-info">
+      <div class="user-badge">
+        <span id="username">Loading...</span>
+        <span class="role" id="userRole">-</span>
+      </div>
+      <button id="usersBtn" class="btn btn-secondary btn-sm" style="display: none;">👥 Gebruikers</button>
+      <button id="logoutBtn" class="logout-btn">↪ Uitloggen</button>
+    </div>
+  </header>
+
+  <div class="dash-grid">
+
+    <!-- Stats -->
+    <div class="section">
+      <p class="section-title">Overzicht</p>
+      <div class="stats-grid">
+        <div class="stat-card"><strong id="trackerCount">—</strong><span>Trackers</span></div>
+        <div class="stat-card"><strong id="visitCount">—</strong><span>Bezoeken</span></div>
+        <div class="stat-card"><strong id="uniqueCount">—</strong><span>Unieke IP's</span></div>
+      </div>
+    </div>
+
+    <!-- Nieuwe tracker -->
+    <div class="section">
+      <p class="section-title">Nieuwe trackinglink</p>
+
+      <div class="field">
+        <label for="name">Naam</label>
+        <input type="text" id="name" placeholder="bijv. Instagram campagne">
+      </div>
+      <div class="field">
+        <label for="destination">Doel-URL (https://)</label>
+        <input type="text" id="destination" value="https://" placeholder="https://voorbeeld.nl">
+      </div>
+      <div class="field">
+        <label for="domainPreset">Domein</label>
+        <select id="domainPreset">
+          <option value="current">Gebruik huidig domein</option>
+          <option value="custom">Eigen domein</option>
+        </select>
+      </div>
+      <div id="customDomainWrapper" class="field" style="display:none;">
+        <label for="domain">Eigen domeinnaam</label>
+        <input type="text" id="domain" value="https://" placeholder="https://mijndomein.nl">
+      </div>
+
+      <button class="btn btn-primary" id="generateBtn">
+        ＋ Link aanmaken
+      </button>
+
+      <div id="result">
+        <div><strong>Trackinglink:</strong></div>
+        <div class="copy-row">
+          <input type="text" id="generatedLink" readonly>
+          <button id="copyBtn" class="btn btn-secondary btn-sm">Kopieer</button>
+          <span id="copyFeedback">✓ Gekopieerd</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Actieve trackers -->
+  <div class="section">
+    <div class="table-header">
+      <p class="section-title" style="margin:0;">Actieve trackers</p>
+    </div>
+    <div id="trackersList" class="trackers-grid">
+      <div class="skeleton" style="height:90px;"></div>
+      <div class="skeleton" style="height:90px;"></div>
+    </div>
+  </div>
+
+  <!-- Logs tabel -->
+  <div class="section">
+    <div class="table-header">
+      <p class="section-title" style="margin:0;">Laatste logs</p>
+      <button id="refreshBtn" class="btn btn-secondary btn-sm">↻ Ververs</button>
+    </div>
+    <div class="table-wrapper">
+      <table id="logsTable">
+        <thead>
+          <tr>
+            <th>Naam</th><th>Tijd</th><th>Tracker ID</th>
+            <th>IP</th><th>Land</th><th>Stad</th>
+            <th>Browser / OS</th><th>Actie</th>
+          </tr>
+        </thead>
+        <tbody id="logsBody">
+          <tr><td colspan="8"><div class="skeleton"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<!-- Detail modal -->
+<div id="detailModal" class="modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2 id="detailModalTitle">Log details</h2>
+      <button id="closeModalBtn" class="btn btn-secondary btn-sm">✕ Sluiten</button>
+    </div>
+    <div id="detailContent"></div>
+  </div>
+</div>
+
+<!-- Toast notificatie -->
+<div id="toast" class="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+  'use strict';
+
+  let allLogs    = [];
+  let currentMap = null;
+
+  // ── Beveiliging: escaping voor HTML-output ─────────────────────────────────
+  function escapeHtml(str) {
+    return String(str ?? '')
+      .replace(/&/g,  '&amp;')
+      .replace(/</g,  '&lt;')
+      .replace(/>/g,  '&gt;')
+      .replace(/"/g,  '&quot;')
+      .replace(/'/g,  '&#039;');
+  }
+
+  // ── Toast berichten (vervangt alert) ───────────────────────────────────────
+  let toastTimer = null;
+  function showToast(msg, type = 'success') {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className   = `toast ${type} show`;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.className = 'toast'; }, 3000);
+  }
+
+  // ── Domein-selector ────────────────────────────────────────────────────────
+  document.getElementById('domainPreset').addEventListener('change', function () {
+    document.getElementById('customDomainWrapper').style.display =
+      this.value === 'custom' ? '' : 'none';
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', logout);
+  document.getElementById('usersBtn').addEventListener('click', () => window.location.href = '/admin');
+  document.getElementById('generateBtn').addEventListener('click', generateLink);
+  document.getElementById('copyBtn').addEventListener('click', copyLink);
+  document.getElementById('refreshBtn').addEventListener('click', loadLogs);
+  document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+
+  // ── Link genereren ─────────────────────────────────────────────────────────
+  async function generateLink() {
+    const name        = document.getElementById('name').value.trim();
+    const destination = document.getElementById('destination').value.trim();
+    const preset      = document.getElementById('domainPreset').value;
+    const customDomain = document.getElementById('domain').value.trim();
+
+    if (!name || !destination) {
+      showToast('Vul naam en doel-URL in.', 'error'); return;
+    }
+    if (!destination.startsWith('https://')) {
+      showToast('Doel-URL moet beginnen met https://', 'error'); return;
+    }
+
+    const btn = document.getElementById('generateBtn');
+    btn.disabled = true;
+    btn.textContent = 'Bezig…';
+
+    const base = preset === 'custom' && customDomain
+      ? customDomain.replace(/\/$/, '')
+      : window.location.origin;
+
+    try {
+      const res  = await fetch('/api/save-tracker', {
+        method:  'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ name, destination_url: destination })
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        showToast(data.error || 'Aanmaken mislukt.', 'error');
+        return;
+      }
+
+      const link = `${base}/${data.tracker_id}`;
+      const resultEl = document.getElementById('result');
+      document.getElementById('generatedLink').value = link;
+      resultEl.style.display = '';
+
+      await loadSummary();
+      await loadTrackersList();
+    } catch (err) {
+      showToast('Netwerkfout bij aanmaken.', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '＋ Link aanmaken';
+    }
+  }
+
+  function copyLink() {
+    const input    = document.getElementById('generatedLink');
+    const feedback = document.getElementById('copyFeedback');
+    navigator.clipboard.writeText(input.value).then(() => {
+      feedback.style.display = 'inline';
+      setTimeout(() => { feedback.style.display = 'none'; }, 2000);
+    });
+  }
+
+  // ── Data laden ─────────────────────────────────────────────────────────────
+  async function loadSummary() {
+    try {
+      const res   = await fetch('/api/summary', { credentials: 'same-origin' });
+      const stats = await res.json();
+      document.getElementById('trackerCount').textContent = stats.totalTrackers ?? '—';
+      document.getElementById('visitCount').textContent   = stats.totalVisits   ?? '—';
+      document.getElementById('uniqueCount').textContent  = stats.uniqueVisits  ?? '—';
+    } catch (err) {
+      console.error('Summary laden mislukt:', err);
+    }
+  }
+
+async function loadTrackersList() {
+  const container = document.getElementById('trackersList');
+
+  try {
+    const res = await fetch('/api/trackers?t=' + Date.now(), {
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache'
+      }
+    });
+
+    const response = await res.json();
+
+    const trackers = Array.isArray(response.data)
+      ? response.data
+      : [];
+    container.innerHTML = '';
+
+    if (!Array.isArray(trackers) || trackers.length === 0) {
+      const msg = document.createElement('p');
+      msg.style.cssText =
+        'color:var(--muted);padding:12px;font-size:.85rem;';
+      msg.textContent = 'Geen actieve trackers gevonden.';
+      container.appendChild(msg);
+      return;
+    }
+
+
+    trackers.forEach(tracker => {
+
+      const url = `${window.location.origin}/${tracker.tracker_id}`;
+      const managementUrl = `${window.location.origin}/manage/${tracker.management_key}`;
+
+      const card = document.createElement('div');
+      card.className = 'tracker-card';
+
+
+      const h3 = document.createElement('h3');
+      h3.textContent = tracker.name;
+
+
+      const id = document.createElement('div');
+      id.className = 'meta';
+      id.textContent = `ID: ${tracker.tracker_id}`;
+
+
+      const dest = document.createElement('div');
+      dest.className = 'meta';
+      dest.style.display = 'flex';
+      dest.style.alignItems = 'center';
+      dest.style.gap = '8px';
+      dest.innerHTML = `Bestemming: ${escapeHtml(tracker.destination_url)}`;
+
+      // Kopieer knop voor bestemming
+      const destCopy = document.createElement('button');
+      destCopy.className = 'btn btn-secondary btn-sm';
+      destCopy.textContent = '📋';
+      destCopy.onclick = () => {
+        navigator.clipboard.writeText(tracker.destination_url);
+        showToast('Bestemming gekopieerd!', 'success');
+      };
+      dest.appendChild(destCopy);
+
+
+      const link = document.createElement('div');
+      link.className = 'meta';
+      link.style.display = 'flex';
+      link.style.alignItems = 'center';
+      link.style.gap = '8px';
+      link.innerHTML = `Link: <a href="${url}" target="_blank">${escapeHtml(url)}</a>`;
+
+      // Kopieer knop voor link
+      const linkCopy = document.createElement('button');
+      linkCopy.className = 'btn btn-secondary btn-sm';
+      linkCopy.textContent = '📋';
+      linkCopy.onclick = () => {
+        navigator.clipboard.writeText(url);
+        showToast('Link gekopieerd!', 'success');
+      };
+      link.appendChild(linkCopy);
+
+
+      const managementLink = document.createElement('div');
+      managementLink.className = 'meta';
+      managementLink.style.display = 'flex';
+      managementLink.style.alignItems = 'center';
+      managementLink.style.gap = '8px';
+      managementLink.innerHTML = `Management: <a href="${managementUrl}" target="_blank">${escapeHtml(managementUrl)}</a>`;
+
+      // Kopieer knop voor management link
+      const mgmtCopy = document.createElement('button');
+      mgmtCopy.className = 'btn btn-secondary btn-sm';
+      mgmtCopy.textContent = '📋';
+      mgmtCopy.onclick = () => {
+        navigator.clipboard.writeText(managementUrl);
+        showToast('Management link gekopieerd!', 'success');
+      };
+      managementLink.appendChild(mgmtCopy);
+
+
+      const actions = document.createElement('div');
+      actions.className = 'actions';
+
+
+      const openBtn = document.createElement('button');
+      openBtn.className = 'btn btn-secondary btn-sm';
+      openBtn.textContent = '↗ Open';
+      openBtn.onclick = () =>
+        window.open(url, '_blank');
+
+
+      const logsBtn = document.createElement('button');
+      logsBtn.className = 'btn btn-secondary btn-sm';
+      logsBtn.textContent = '📍 Logdetails';
+      logsBtn.onclick = () =>
+        showTrackerLogDetails(
+          tracker.tracker_id,
+          tracker.name
+        );
+
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn btn-danger btn-sm';
+      delBtn.textContent = '✕ Verwijderen';
+      delBtn.onclick = () =>
+        deleteTracker(
+          tracker.tracker_id,
+          tracker.name
+        );
+
+
+      actions.append(
+        openBtn,
+        logsBtn,
+        delBtn
+      );
+
+
+      card.append(
+        h3,
+        id,
+        dest,
+        link,
+        actions
+      );
+
+
+      container.appendChild(card);
+
+    });
+
+
+  } catch (err) {
+
+    console.error(
+      'Trackers laden mislukt:',
+      err
+    );
+
+    container.innerHTML = `
+      <p style="color:var(--red);padding:12px;">
+        Fout bij laden trackers
+      </p>
+    `;
+  }
+}
+
+  async function loadLogs() {
+    const tbody = document.getElementById('logsBody');
+    tbody.innerHTML = '<tr><td colspan="8"><div class="skeleton"></div></td></tr>';
+
+    try {
+      const res  = await fetch('/api/logs?limit=500&offset=0', { credentials: 'same-origin' });
+      const response = await res.json();
+      const logs = response.data || response;
+      allLogs    = logs;
+
+      tbody.innerHTML = '';
+
+      if (!logs.length) {
+        const row = document.createElement('tr');
+        const td  = document.createElement('td');
+        td.setAttribute('colspan', '8');
+        td.style.cssText = 'color:var(--muted);text-align:center;padding:20px;';
+        td.textContent   = 'Nog geen logs beschikbaar.';
+        row.appendChild(td);
+        tbody.appendChild(row);
+        return logs;
+      }
+
+      logs.forEach((log, idx) => {
+        const row = document.createElement('tr');
+
+        const cells = [
+          log.name        || 'Onbekend',
+          new Date(log.timestamp).toLocaleString('nl-NL'),
+          log.tracker_id,
+          log.ip,
+          log.country,
+          log.city,
+          `${log.browser} / ${log.os}`
+        ];
+
+        cells.forEach(val => {
+          const td = document.createElement('td');
+          td.textContent = val; // textContent — veilig
+          row.appendChild(td);
+        });
+
+        // Actie-knop
+        const tdAction = document.createElement('td');
+        const btn      = document.createElement('button');
+        btn.className  = 'btn btn-secondary btn-sm';
+        btn.textContent = '📍 Details';
+        btn.addEventListener('click', () => showLogDetails(log));
+        tdAction.appendChild(btn);
+        row.appendChild(tdAction);
+
+        tbody.appendChild(row);
+      });
+
+      return logs;
+    } catch (err) {
+      console.error('Logs laden mislukt:', err);
+      tbody.innerHTML = '';
+      const row = document.createElement('tr');
+      const td  = document.createElement('td');
+      td.setAttribute('colspan', '8');
+      td.style.color = 'var(--red)';
+      td.textContent = 'Fout bij laden van logs.';
+      row.appendChild(td);
+      tbody.appendChild(row);
+      return [];
+    }
+  }
+
+  // ── Log details (XSS-veilig via DOM-methoden) ──────────────────────────────
+  function showLogDetails(log) {
+    const hasCoords = log.latitude && log.longitude;
+
+    document.getElementById('detailModalTitle').textContent = `Log — ${log.name || log.tracker_id}`;
+
+    const content = document.getElementById('detailContent');
+    content.innerHTML = ''; // reset
+
+    const grid = document.createElement('div');
+    grid.className = 'detail-grid';
+
+    const items = [
+      ['Tracker naam',     log.name || 'Onbekend'],
+      ['Tracker ID',       log.tracker_id],
+      ['IP-adres',         log.ip],
+      ['Land',             log.country],
+      ['Stad',             log.city],
+      ['ISP',              log.isp],
+      ['Tijdstip',         new Date(log.timestamp).toLocaleString('nl-NL')],
+      ['Browser',          log.browser],
+      ['Besturingssysteem',log.os],
+      ['Apparaat',         log.device],
+      ['User Agent',       log.useragent],
+      ['Referer',          log.referer],
+    ];
+
+    items.forEach(([label, value]) => {
+      const item   = document.createElement('div');
+      item.className = 'detail-item';
+      const strong = document.createElement('strong');
+      strong.textContent = label;
+      const span   = document.createElement('span');
+      span.textContent   = value || '—';
+      item.append(strong, span);
+      grid.appendChild(item);
+    });
+
+    content.appendChild(grid);
+
+    if (hasCoords) {
+      const coordItem = document.createElement('div');
+      coordItem.className = 'detail-item';
+      const strong = document.createElement('strong');
+      strong.textContent = '🗺️ Coördinaten';
+      const span = document.createElement('span');
+      span.textContent = `Lat: ${parseFloat(log.latitude).toFixed(4)}, Lon: ${parseFloat(log.longitude).toFixed(4)}`;
+      coordItem.append(strong, span);
+      content.appendChild(coordItem);
+
+      const mapDiv = document.createElement('div');
+      mapDiv.id = 'map';
+      content.appendChild(mapDiv);
+    }
+
+    document.getElementById('detailModal').classList.add('active');
+
+    if (hasCoords) {
+      setTimeout(() => {
+        if (currentMap) { currentMap.remove(); currentMap = null; }
+        currentMap = L.map('map').setView([+log.latitude, +log.longitude], 10);
+        L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+          attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a>',
+          maxZoom: 17
+        }).addTo(currentMap);
+        L.marker([+log.latitude, +log.longitude])
+          .addTo(currentMap)
+          .bindPopup(escapeHtml(log.city) + ', ' + escapeHtml(log.country));
+        currentMap.invalidateSize();
+      }, 150);
+    }
+  }
+
+  function showTrackerLogDetails(trackerId, trackerName) {
+    // Gebruik al geladen logs — geen extra fetch
+    const log = allLogs.find(l => l.tracker_id === trackerId);
+    if (log) {
+      showLogDetails(log);
+      return;
+    }
+
+    // Geen logs voor deze tracker
+    const content = document.getElementById('detailContent');
+    content.innerHTML = '';
+
+    const grid = document.createElement('div');
+    grid.className = 'detail-grid';
+
+    [['Tracker naam', trackerName], ['Tracker ID', trackerId], ['Logrecords', '0']].forEach(([l, v]) => {
+      const item = document.createElement('div');
+      item.className = 'detail-item';
+      const s = document.createElement('strong'); s.textContent = l;
+      const p = document.createElement('span');   p.textContent = v;
+      item.append(s, p);
+      grid.appendChild(item);
+    });
+
+    const msg = document.createElement('div');
+    msg.className = 'detail-item';
+    msg.style.gridColumn = '1/-1';
+    msg.textContent = 'Geen logs gevonden voor deze tracker.';
+
+    content.append(grid, msg);
+    document.getElementById('detailModalTitle').textContent = 'Log details';
+    document.getElementById('detailModal').classList.add('active');
+  }
+
+  function closeModal() {
+    document.getElementById('detailModal').classList.remove('active');
+    if (currentMap) { currentMap.remove(); currentMap = null; }
+  }
+
+  // ── Tracker verwijderen ────────────────────────────────────────────────────
+  async function deleteTracker(trackerId, trackerName) {
+    if (!confirm(`Tracker "${trackerName}" verwijderen?\nDeze actie verwijdert ook de bijbehorende logs.`)) return;
+
+    try {
+      const res  = await fetch('/api/delete-tracker', {
+        method:  'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ tracker_id: trackerId })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        showToast(`Tracker "${trackerName}" verwijderd.`, 'success');
+        await Promise.all([loadSummary(), loadTrackersList(), loadLogs()]);
+      } else {
+        showToast('Verwijderen mislukt.', 'error');
+      }
+    } catch {
+      showToast('Netwerkfout bij verwijderen.', 'error');
+    }
+  }
+
+  // ── Modal sluiten via backdrop ─────────────────────────────────────────────
+  document.getElementById('detailModal').addEventListener('click', e => {
+    if (e.target.id === 'detailModal') closeModal();
+  });
+
+  // ── Keyboard: Escape sluit modal ───────────────────────────────────────────
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeModal();
+  });
+
+  // ── Logout ─────────────────────────────────────────────────────────────────
+  async function logout() {
+    if (!confirm('Weet je zeker dat je wilt uitloggen?')) return;
+    try {
+      const res = await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
+      if (res.ok) {
+        window.location.href = '/login';
+      }
+    } catch (err) {
+      alert('Fout bij uitloggen.');
+    }
+  }
+
+  // ── Load user info ─────────────────────────────────────────────────────────
+  async function loadUserInfo() {
+    try {
+      const res = await fetch('/api/user', { credentials: 'same-origin' });
+      const data = await res.json();
+      console.log('User info response:', data);
+
+      if (data.authenticated) {
+        const usernameEl = document.getElementById('username');
+        const userRoleEl = document.getElementById('userRole');
+        const usersBtn = document.getElementById('usersBtn');
+
+        if (usernameEl) usernameEl.textContent = data.user;
+        if (userRoleEl) userRoleEl.textContent = data.role;
+
+        // Show users button only for admins
+        if (data.role === 'admin' && usersBtn) {
+          usersBtn.style.display = 'inline-block';
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load user info:', err);
+    }
+  }
+
+  // ── Initieel laden ─────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  loadUserInfo();
+  loadSummary();
+  loadTrackersList();
+  loadLogs();
+});
+</script>
+</body>
+</html>
