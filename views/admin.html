@@ -36,6 +36,7 @@
     header {
       display: flex;
       align-items: baseline;
+      justify-content: space-between;
       gap: 18px;
       margin-bottom: 30px;
       padding-bottom: 18px;
@@ -54,6 +55,42 @@
       font-size: 0.75rem;
       color: var(--muted);
       letter-spacing: .05em;
+    }
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .user-badge {
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 10px;
+      padding: 8px 14px;
+      font-size: 0.85rem;
+      color: var(--accent);
+    }
+    .user-badge .role {
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.7rem;
+      margin-left: 6px;
+      padding: 2px 6px;
+      background: var(--accent);
+      color: #0b1219;
+      border-radius: 4px;
+    }
+    .logout-btn {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: var(--red);
+      padding: 8px 14px;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .logout-btn:hover {
+      background: rgba(239, 68, 68, 0.2);
     }
 
     .section {
@@ -279,10 +316,18 @@
 <div class="container">
 
   <header>
-    <h1>R3DIR3Ct</h1>
-    <span>IP Tracking Dashboard</span>
-    <button id="usersBtn" class="btn btn-secondary btn-sm" style="margin-left: auto;">👥 Gebruikers</button>
-    <button id="logoutBtn" class="btn btn-secondary btn-sm" style="margin-left: 10px;">↪ Uitloggen</button>
+    <div>
+      <h1>R3DIR3Ct</h1>
+      <span>IP Tracking Dashboard</span>
+    </div>
+    <div class="user-info">
+      <div class="user-badge">
+        <span id="username">Loading...</span>
+        <span class="role" id="userRole">-</span>
+      </div>
+      <button id="usersBtn" class="btn btn-secondary btn-sm" style="display: none;">👥 Gebruikers</button>
+      <button id="logoutBtn" class="logout-btn">↪ Uitloggen</button>
+    </div>
   </header>
 
   <div class="dash-grid">
@@ -547,13 +592,15 @@ async function loadTrackersList() {
 
       const dest = document.createElement('div');
       dest.className = 'meta';
+      dest.style.display = 'flex';
+      dest.style.alignItems = 'center';
+      dest.style.gap = '8px';
       dest.innerHTML = `Bestemming: ${escapeHtml(tracker.destination_url)}`;
 
       // Kopieer knop voor bestemming
       const destCopy = document.createElement('button');
       destCopy.className = 'btn btn-secondary btn-sm';
       destCopy.textContent = '📋';
-      destCopy.style.marginLeft = '8px';
       destCopy.onclick = () => {
         navigator.clipboard.writeText(tracker.destination_url);
         showToast('Bestemming gekopieerd!', 'success');
@@ -563,13 +610,15 @@ async function loadTrackersList() {
 
       const link = document.createElement('div');
       link.className = 'meta';
+      link.style.display = 'flex';
+      link.style.alignItems = 'center';
+      link.style.gap = '8px';
       link.innerHTML = `Link: <a href="${url}" target="_blank">${escapeHtml(url)}</a>`;
 
       // Kopieer knop voor link
       const linkCopy = document.createElement('button');
       linkCopy.className = 'btn btn-secondary btn-sm';
       linkCopy.textContent = '📋';
-      linkCopy.style.marginLeft = '8px';
       linkCopy.onclick = () => {
         navigator.clipboard.writeText(url);
         showToast('Link gekopieerd!', 'success');
@@ -579,13 +628,15 @@ async function loadTrackersList() {
 
       const managementLink = document.createElement('div');
       managementLink.className = 'meta';
+      managementLink.style.display = 'flex';
+      managementLink.style.alignItems = 'center';
+      managementLink.style.gap = '8px';
       managementLink.innerHTML = `Management: <a href="${managementUrl}" target="_blank">${escapeHtml(managementUrl)}</a>`;
 
       // Kopieer knop voor management link
       const mgmtCopy = document.createElement('button');
       mgmtCopy.className = 'btn btn-secondary btn-sm';
       mgmtCopy.textContent = '📋';
-      mgmtCopy.style.marginLeft = '8px';
       mgmtCopy.onclick = () => {
         navigator.clipboard.writeText(managementUrl);
         showToast('Management link gekopieerd!', 'success');
@@ -888,8 +939,28 @@ async function loadTrackersList() {
     }
   }
 
+  // ── Load user info ─────────────────────────────────────────────────────────
+  async function loadUserInfo() {
+    try {
+      const res = await fetch('/api/user', { credentials: 'same-origin' });
+      const data = await res.json();
+      if (data.authenticated) {
+        document.getElementById('username').textContent = data.user;
+        document.getElementById('userRole').textContent = data.role;
+
+        // Show users button only for admins
+        if (data.role === 'admin') {
+          document.getElementById('usersBtn').style.display = 'inline-block';
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load user info:', err);
+    }
+  }
+
   // ── Initieel laden ─────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  loadUserInfo();
   loadSummary();
   loadTrackersList();
   loadLogs();

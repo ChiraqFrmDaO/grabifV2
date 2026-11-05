@@ -251,6 +251,18 @@ function requireAuth(req, res, next) {
   res.redirect('/login');
 }
 
+function requireAdmin(req, res, next) {
+  if (req.session && req.session.authenticated && req.session.role === 'admin') {
+    return next();
+  }
+
+  if (req.path.startsWith('/api/')) {
+    return res.status(403).json({ error: 'Alleen admins hebben toegang.' });
+  }
+
+  res.redirect('/admin');
+}
+
 // Apply API rate limiter to all /api routes except login/logout
 app.use('/api', (req, res, next) => {
   if (req.path === '/login' || req.path === '/logout') {
@@ -1227,12 +1239,20 @@ app.post('/api/logout', (req, res) => {
   });
 });
 
+app.get('/api/user', requireAuth, (req, res) => {
+  res.json({
+    authenticated: req.session.authenticated,
+    user: req.session.user,
+    role: req.session.role
+  });
+});
+
 app.get('/admin', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'views', 'admin.html'));
 });
 
 // Users management page (admin only)
-app.get('/users', requireAuth, (req, res) => {
+app.get('/users', requireAdmin, (req, res) => {
   res.sendFile(path.join(__dirname, 'views', 'users.html'));
 });
 
@@ -1368,7 +1388,7 @@ app.post('/api/manage/:managementKey', async (req, res) => {
 
 // ── User Management ─────────────────────────────────────────────────────────
 // Generate invite token
-app.post('/api/invites', requireAuth, async (req, res) => {
+app.post('/api/invites', requireAdmin, async (req, res) => {
   try {
     const inviteToken = generateInviteToken();
     
@@ -1391,7 +1411,7 @@ app.post('/api/invites', requireAuth, async (req, res) => {
 });
 
 // List invites
-app.get('/api/invites', requireAuth, async (req, res) => {
+app.get('/api/invites', requireAdmin, async (req, res) => {
   try {
     let invites = [];
     if (useDb) {
