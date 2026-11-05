@@ -2,6 +2,7 @@ const express      = require('express');
 const dotenv       = require('dotenv');
 const uaParser     = require('ua-parser-js');
 const session      = require('express-session');
+const pgSession    = require('connect-pg-simple')(session);
 const helmet       = require('helmet');
 const rateLimit    = require('express-rate-limit');
 const compression  = require('compression');
@@ -10,6 +11,7 @@ const fs           = require('fs');
 const https        = require('https');
 const crypto       = require('crypto');
 const path         = require('path');
+const { Pool }     = require('pg');
 const Database     = require('better-sqlite3');
 const cors         = require('cors');
 const Joi          = require('joi');
@@ -22,8 +24,12 @@ app.set('trust proxy', 1);
 
 // ── Database Configuration ────────────────────────────────────────────────────
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'database.sqlite');
+const DATABASE_URL = process.env.DATABASE_URL;
+
 let db = null;
+let pool = null;
 let useDb = false;
+let usePostgres = false;
 
 // ── Custom Error Classes ──────────────────────────────────────────────────────────
 class AppError extends Error {
@@ -193,7 +199,10 @@ if (!sessionSecret) {
   console.warn('⚠️  WARNING: No SESSION_SECRET set. Using random secret (sessions will be lost on restart).');
 }
 
+let sessionStore = null;
+
 app.use(session({
+  store: sessionStore,
   secret: sessionSecret || crypto.randomBytes(32).toString('hex'),
   resave: false,
   saveUninitialized: false,
@@ -497,73 +506,162 @@ function generateTrackerId() {
 
 // ── Database-initialisatie ────────────────────────────────────────────────────
 async function initDatabase() {
-  try {
-    db = new Database(DB_PATH);
-    db.pragma('journal_mode = WAL');
-
-    // Create trackers table
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS trackers (
-        tracker_id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        destination_url TEXT NOT NULL,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-    `);
-
-    // Add updated_at column if it doesn't exist
+  // Use PostgreSQL if DATABASE_URL is set, otherwise SQLite
+  if (DATABASE_URL) {
     try {
-      db.exec(`ALTER TABLE trackers ADD COLUMN updated_at TEXT DEFAULT (datetime('now'));`);
-    } catch (err) {
-      // Column already exists, ignore
+      pool = new Pool({
+        connectionString: DATABASE_URL,
+        ssl: { rejectUnauthorized: false },
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 10000,
+      });
+
+      pool.on('error', (err) => {
+        console.error('Unexpected error on idle client', err);
+      });
+
+      await pool.query('SELECT 1');
+
+      // Initialize session store
+      sessionStore = new pgSession({
+        pool: pool,
+        tableName: 'session',
+        createTableIfMissing: true
+      });
+
+      // Create trackers table
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS trackers (
+          tracker_id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          destination_url TEXT NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
+      `);
+
+      // Add updated_at column if it doesn't exist
+      try {
+        await pool.query(`ALTER TABLE trackers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();`);
+      } catch (err) {}
+
+      // Create logs table
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS logs (
+          id SERIAL PRIMARY KEY,
+          tracker_id TEXT NOT NULL,
+          tracker_name TEXT,
+          timestamp TIMESTAMPTZ NOT NULL DEFAULT now(),
+          ip TEXT,
+          country TEXT,
+          city TEXT,
+          isp TEXT,
+          browser TEXT,
+          os TEXT,
+          device TEXT,
+          useragent TEXT,
+          referer TEXT,
+          latitude NUMERIC,
+          longitude NUMERIC,
+          is_pixel BOOLEAN DEFAULT false
+        );
+      `);
+
+      // Add columns if they don't exist
+      try {
+        await pool.query(`ALTER TABLE logs ADD COLUMN IF NOT EXISTS latitude NUMERIC;`);
+      } catch (err) {}
+      try {
+        await pool.query(`ALTER TABLE logs ADD COLUMN IF NOT EXISTS longitude NUMERIC;`);
+      } catch (err) {}
+      try {
+        await pool.query(`ALTER TABLE logs ADD COLUMN IF NOT EXISTS is_pixel BOOLEAN DEFAULT false;`);
+      } catch (err) {}
+
+      // Create indexes
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_logs_tracker_id ON logs(tracker_id)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp DESC)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_logs_ip ON logs(ip)`);
+
+      useDb = true;
+      usePostgres = true;
+      console.log('✅ PostgreSQL database actief. Opslag via database.');
+    } catch (error) {
+      console.error('❌ PostgreSQL connectie mislukt. Probeer SQLite...');
+      console.error(error);
+      pool = null;
     }
+  }
 
-    // Create logs table
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        tracker_id TEXT NOT NULL,
-        tracker_name TEXT,
-        timestamp TEXT NOT NULL DEFAULT (datetime('now')),
-        ip TEXT,
-        country TEXT,
-        city TEXT,
-        isp TEXT,
-        browser TEXT,
-        os TEXT,
-        device TEXT,
-        useragent TEXT,
-        referer TEXT,
-        latitude REAL,
-        longitude REAL,
-        is_pixel INTEGER DEFAULT 0
-      );
-    `);
-
-    // Add columns if they don't exist
+  // Fallback to SQLite
+  if (!useDb) {
     try {
-      db.exec(`ALTER TABLE logs ADD COLUMN latitude REAL;`);
-    } catch (err) {}
-    try {
-      db.exec(`ALTER TABLE logs ADD COLUMN longitude REAL;`);
-    } catch (err) {}
-    try {
-      db.exec(`ALTER TABLE logs ADD COLUMN is_pixel INTEGER DEFAULT 0;`);
-    } catch (err) {}
+      db = new Database(DB_PATH);
+      db.pragma('journal_mode = WAL');
 
-    // Create indexes
-    db.exec(`CREATE INDEX IF NOT EXISTS idx_logs_tracker_id ON logs(tracker_id);`);
-    db.exec(`CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp DESC);`);
-    db.exec(`CREATE INDEX IF NOT EXISTS idx_logs_ip ON logs(ip);`);
+      // Create trackers table
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS trackers (
+          tracker_id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          destination_url TEXT NOT NULL,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+      `);
 
-    useDb = true;
-    console.log('✅ SQLite database actief. Opslag via database.');
-  } catch (error) {
-    console.error('❌ Database connectie mislukt. Gebruik fallback file storage.');
-    console.error(error);
-    db = null;
-    useDb = false;
+      // Add updated_at column if it doesn't exist
+      try {
+        db.exec(`ALTER TABLE trackers ADD COLUMN updated_at TEXT DEFAULT (datetime('now'));`);
+      } catch (err) {}
+
+      // Create logs table
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS logs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          tracker_id TEXT NOT NULL,
+          tracker_name TEXT,
+          timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+          ip TEXT,
+          country TEXT,
+          city TEXT,
+          isp TEXT,
+          browser TEXT,
+          os TEXT,
+          device TEXT,
+          useragent TEXT,
+          referer TEXT,
+          latitude REAL,
+          longitude REAL,
+          is_pixel INTEGER DEFAULT 0
+        );
+      `);
+
+      // Add columns if they don't exist
+      try {
+        db.exec(`ALTER TABLE logs ADD COLUMN latitude REAL;`);
+      } catch (err) {}
+      try {
+        db.exec(`ALTER TABLE logs ADD COLUMN longitude REAL;`);
+      } catch (err) {}
+      try {
+        db.exec(`ALTER TABLE logs ADD COLUMN is_pixel INTEGER DEFAULT 0;`);
+      } catch (err) {}
+
+      // Create indexes
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_logs_tracker_id ON logs(tracker_id);`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp DESC);`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_logs_ip ON logs(ip);`);
+
+      useDb = true;
+      console.log('✅ SQLite database actief. Opslag via database.');
+    } catch (error) {
+      console.error('❌ Database connectie mislukt. Gebruik fallback file storage.');
+      console.error(error);
+      db = null;
+      useDb = false;
+    }
   }
 }
 
@@ -589,8 +687,13 @@ async function loadTrackers() {
 
   let result;
   if (useDb) {
-    const stmt = db.prepare('SELECT tracker_id, name, destination_url, created_at FROM trackers ORDER BY created_at DESC');
-    result = stmt.all();
+    if (usePostgres) {
+      const { rows } = await pool.query('SELECT tracker_id, name, destination_url, created_at FROM trackers ORDER BY created_at DESC');
+      result = rows;
+    } else {
+      const stmt = db.prepare('SELECT tracker_id, name, destination_url, created_at FROM trackers ORDER BY created_at DESC');
+      result = stmt.all();
+    }
   } else {
     result = await readTrackersFile();
   }
@@ -601,8 +704,13 @@ async function loadTrackers() {
 
 async function loadTrackerById(trackerId) {
   if (useDb) {
-    const stmt = db.prepare('SELECT tracker_id, name, destination_url FROM trackers WHERE tracker_id = ?');
-    return stmt.get(trackerId);
+    if (usePostgres) {
+      const { rows } = await pool.query('SELECT tracker_id, name, destination_url FROM trackers WHERE tracker_id = $1', [trackerId]);
+      return rows[0];
+    } else {
+      const stmt = db.prepare('SELECT tracker_id, name, destination_url FROM trackers WHERE tracker_id = ?');
+      return stmt.get(trackerId);
+    }
   }
   const trackers = await readTrackersFile();
   return trackers.find(t => t.tracker_id === trackerId);
@@ -610,16 +718,27 @@ async function loadTrackerById(trackerId) {
 
 async function saveTracker({ tracker_id, name, destination_url }) {
   if (useDb) {
-    const now = new Date().toISOString();
-    const stmt = db.prepare(`
-      INSERT INTO trackers (tracker_id, name, destination_url, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(tracker_id) DO UPDATE SET
-        name = excluded.name,
-        destination_url = excluded.destination_url,
-        updated_at = excluded.updated_at
-    `);
-    stmt.run(tracker_id, name, destination_url, now, now);
+    if (usePostgres) {
+      await pool.query(`
+        INSERT INTO trackers (tracker_id, name, destination_url, created_at, updated_at)
+        VALUES ($1, $2, $3, now(), now())
+        ON CONFLICT (tracker_id) DO UPDATE SET
+          name = EXCLUDED.name,
+          destination_url = EXCLUDED.destination_url,
+          updated_at = now()
+      `, [tracker_id, name, destination_url]);
+    } else {
+      const now = new Date().toISOString();
+      const stmt = db.prepare(`
+        INSERT INTO trackers (tracker_id, name, destination_url, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(tracker_id) DO UPDATE SET
+          name = excluded.name,
+          destination_url = excluded.destination_url,
+          updated_at = excluded.updated_at
+      `);
+      stmt.run(tracker_id, name, destination_url, now, now);
+    }
     invalidateCache('summary');
     invalidateCache('trackers');
     return;
@@ -646,10 +765,15 @@ async function saveTracker({ tracker_id, name, destination_url }) {
 
 async function deleteTrackerById(trackerId) {
   if (useDb) {
-    const deleteLogs = db.prepare('DELETE FROM logs WHERE tracker_id = ?');
-    const deleteTracker = db.prepare('DELETE FROM trackers WHERE tracker_id = ?');
-    deleteLogs.run(trackerId);
-    deleteTracker.run(trackerId);
+    if (usePostgres) {
+      await pool.query('DELETE FROM logs WHERE tracker_id = $1', [trackerId]);
+      await pool.query('DELETE FROM trackers WHERE tracker_id = $1', [trackerId]);
+    } else {
+      const deleteLogs = db.prepare('DELETE FROM logs WHERE tracker_id = ?');
+      const deleteTracker = db.prepare('DELETE FROM trackers WHERE tracker_id = ?');
+      deleteLogs.run(trackerId);
+      deleteTracker.run(trackerId);
+    }
     invalidateCache('summary');
     invalidateCache('trackers');
     invalidateCache('logs');
@@ -682,18 +806,32 @@ async function deleteTrackerById(trackerId) {
 
 async function appendLog(log) {
   if (useDb) {
-    const stmt = db.prepare(`
-      INSERT INTO logs
-        (tracker_id, tracker_name, timestamp, ip, country, city, isp,
-         browser, os, device, useragent, referer, latitude, longitude, is_pixel)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    stmt.run(
-      log.tracker_id, log.tracker_name, log.timestamp,
-      log.ip, log.country, log.city, log.isp,
-      log.browser, log.os, log.device, log.useragent, log.referer,
-      log.latitude, log.longitude, log.is_pixel ? 1 : 0
-    );
+    if (usePostgres) {
+      await pool.query(`
+        INSERT INTO logs
+          (tracker_id, tracker_name, timestamp, ip, country, city, isp,
+           browser, os, device, useragent, referer, latitude, longitude, is_pixel)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      `, [
+        log.tracker_id, log.tracker_name, log.timestamp,
+        log.ip, log.country, log.city, log.isp,
+        log.browser, log.os, log.device, log.useragent, log.referer,
+        log.latitude, log.longitude, log.is_pixel ?? false
+      ]);
+    } else {
+      const stmt = db.prepare(`
+        INSERT INTO logs
+          (tracker_id, tracker_name, timestamp, ip, country, city, isp,
+           browser, os, device, useragent, referer, latitude, longitude, is_pixel)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      stmt.run(
+        log.tracker_id, log.tracker_name, log.timestamp,
+        log.ip, log.country, log.city, log.isp,
+        log.browser, log.os, log.device, log.useragent, log.referer,
+        log.latitude, log.longitude, log.is_pixel ? 1 : 0
+      );
+    }
     invalidateCache('summary');
     invalidateCache('logs');
     return;
@@ -705,9 +843,14 @@ async function appendLog(log) {
 
 async function getLogs(limit = MAX_LOG_ROWS, offset = 0) {
   if (useDb) {
-    const stmt = db.prepare('SELECT * FROM logs ORDER BY timestamp DESC LIMIT ? OFFSET ?');
-    const rows = stmt.all(limit, offset);
-    return rows.filter(row => !isBotLog(row));
+    if (usePostgres) {
+      const { rows } = await pool.query('SELECT * FROM logs ORDER BY timestamp DESC LIMIT $1 OFFSET $2', [limit, offset]);
+      return rows.filter(row => !isBotLog(row));
+    } else {
+      const stmt = db.prepare('SELECT * FROM logs ORDER BY timestamp DESC LIMIT ? OFFSET ?');
+      const rows = stmt.all(limit, offset);
+      return rows.filter(row => !isBotLog(row));
+    }
   }
 
   try {
@@ -730,16 +873,28 @@ async function getSummary() {
 
   let result;
   if (useDb) {
-    // Unieke IPs efficiënt via SQL — laadt niet alles in geheugen
-    const trackerCount = db.prepare('SELECT COUNT(*) as count FROM trackers').get();
-    const visitCount = db.prepare("SELECT COUNT(*) as count FROM logs WHERE useragent NOT LIKE '%bot%' AND useragent NOT LIKE '%crawl%'").get();
-    const uniqueCount = db.prepare("SELECT COUNT(DISTINCT ip) as count FROM logs WHERE useragent NOT LIKE '%bot%' AND useragent NOT LIKE '%crawl%'").get();
+    if (usePostgres) {
+      const [trackerRes, visitsRes, uniqueRes] = await Promise.all([
+        pool.query(`SELECT COUNT(*) FROM trackers`),
+        pool.query(`SELECT COUNT(*) FROM logs WHERE useragent NOT ILIKE '%bot%' AND useragent NOT ILIKE '%crawl%'`),
+        pool.query(`SELECT COUNT(DISTINCT ip) FROM logs WHERE useragent NOT ILIKE '%bot%' AND useragent NOT ILIKE '%crawl%'`),
+      ]);
+      result = {
+        totalTrackers: parseInt(trackerRes.rows[0].count, 10),
+        totalVisits:   parseInt(visitsRes.rows[0].count,   10),
+        uniqueVisits:  parseInt(uniqueRes.rows[0].count,   10),
+      };
+    } else {
+      const trackerCount = db.prepare('SELECT COUNT(*) as count FROM trackers').get();
+      const visitCount = db.prepare("SELECT COUNT(*) as count FROM logs WHERE useragent NOT LIKE '%bot%' AND useragent NOT LIKE '%crawl%'").get();
+      const uniqueCount = db.prepare("SELECT COUNT(DISTINCT ip) as count FROM logs WHERE useragent NOT LIKE '%bot%' AND useragent NOT LIKE '%crawl%'").get();
 
-    result = {
-      totalTrackers: trackerCount.count,
-      totalVisits:   visitCount.count,
-      uniqueVisits:  uniqueCount.count,
-    };
+      result = {
+        totalTrackers: trackerCount.count,
+        totalVisits:   visitCount.count,
+        uniqueVisits:  uniqueCount.count,
+      };
+    }
   } else {
     const trackers   = await readTrackersFile();
     const logs       = await getLogs(0);
@@ -1095,8 +1250,13 @@ app.use((err, req, res, next) => {
 const gracefulShutdown = async (signal) => {
   console.log(`\n${signal} received. Starting graceful shutdown...`);
 
+  if (pool) {
+    console.log('Closing PostgreSQL pool...');
+    await pool.end();
+  }
+
   if (db) {
-    console.log('Closing database connection...');
+    console.log('Closing SQLite connection...');
     db.close();
   }
 
