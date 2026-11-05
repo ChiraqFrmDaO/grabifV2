@@ -30,6 +30,7 @@ let db = null;
 let pool = null;
 let useDb = false;
 let usePostgres = false;
+let sessionStore = null;
 
 // ── Custom Error Classes ──────────────────────────────────────────────────────────
 class AppError extends Error {
@@ -129,7 +130,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// ── Security headers ──────────────────────────────────────────────────────────
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -170,6 +171,52 @@ app.use(cors({
   maxAge: 86400
 }));
 
+// ── Session management ────────────────────────────────────────────────────────
+const sessionSecret = process.env.SESSION_SECRET;
+if (!sessionSecret && process.env.NODE_ENV === 'production') {
+  console.error('❌ ERROR: SESSION_SECRET is required in production. Set it in your .env file.');
+  process.exit(1);
+}
+if (!sessionSecret) {
+  console.warn('⚠️  WARNING: No SESSION_SECRET set. Using random secret (sessions will be lost on restart).');
+}
+
+// Session store init based on DATABASE_URL
+if (DATABASE_URL) {
+  sessionStore = new pgSession({
+    conObject: {
+      connectionString: DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    },
+    tableName: 'session',
+    createTableIfMissing: true
+  });
+} else {
+  try {
+    const SQLiteStore = require('better-sqlite3-session-store')(session);
+    sessionStore = new SQLiteStore({
+      db: new Database(DB_PATH),
+      expired: { clear: true, intervalMs: 900000 }
+    });
+  } catch (err) {
+    console.warn('SQLite session store init failed, using memory store');
+  }
+}
+
+app.use(session({
+  store: sessionStore,
+  secret: sessionSecret || crypto.randomBytes(32).toString('hex'),
+  resave: false,
+  saveUninitialized: false,
+  name: 'sid',
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+    maxAge: 24 * 60 * 60 * 1000
+  }
+}));
+
 // Request logging middleware
 app.use((req, res, next) => {
   const start = Date.now();
@@ -189,31 +236,10 @@ app.use(express.static('public', {
 app.use(express.json({ limit: '16kb' }));
 app.use(express.urlencoded({ extended: true, limit: '16kb' }));
 
-// ── Session management ────────────────────────────────────────────────────────
-const sessionSecret = process.env.SESSION_SECRET;
-if (!sessionSecret && process.env.NODE_ENV === 'production') {
-  console.error('❌ ERROR: SESSION_SECRET is required in production. Set it in your .env file.');
-  process.exit(1);
-}
-if (!sessionSecret) {
-  console.warn('⚠️  WARNING: No SESSION_SECRET set. Using random secret (sessions will be lost on restart).');
-}
 
+
+// Session store zal later worden geïnitialiseerd na database init
 let sessionStore = null;
-
-app.use(session({
-  store: sessionStore,
-  secret: sessionSecret || crypto.randomBytes(32).toString('hex'),
-  resave: false,
-  saveUninitialized: false,
-  name: 'sid',
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-    maxAge: 24 * 60 * 60 * 1000
-  }
-}));
 
 // ── Authenticatie middleware ──────────────────────────────────────────────────
 function requireAuth(req, res, next) {
@@ -522,13 +548,6 @@ async function initDatabase() {
       });
 
       await pool.query('SELECT 1');
-
-      // Initialize session store
-      sessionStore = new pgSession({
-        pool: pool,
-        tableName: 'session',
-        createTableIfMissing: true
-      });
 
       // Create trackers table
       await pool.query(`
