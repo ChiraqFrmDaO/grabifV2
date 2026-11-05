@@ -2,6 +2,9 @@ node_modules/
 *.db
 *.sqlite
 *.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+.env
 trackers.json
 logs.txt
 Git-2.54.0-64-bit.exe
