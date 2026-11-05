@@ -946,13 +946,19 @@ async function loadTrackersList() {
     try {
       const res = await fetch('/api/user', { credentials: 'same-origin' });
       const data = await res.json();
+      console.log('User info response:', data);
+
       if (data.authenticated) {
-        document.getElementById('username').textContent = data.user;
-        document.getElementById('userRole').textContent = data.role;
+        const usernameEl = document.getElementById('username');
+        const userRoleEl = document.getElementById('userRole');
+        const usersBtn = document.getElementById('usersBtn');
+
+        if (usernameEl) usernameEl.textContent = data.user;
+        if (userRoleEl) userRoleEl.textContent = data.role;
 
         // Show users button only for admins
-        if (data.role === 'admin') {
-          document.getElementById('usersBtn').style.display = 'inline-block';
+        if (data.role === 'admin' && usersBtn) {
+          usersBtn.style.display = 'inline-block';
         }
       }
     } catch (err) {
