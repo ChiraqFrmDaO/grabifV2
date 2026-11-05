@@ -346,6 +346,17 @@
     </div>
   </div>
 
+  <!-- User Management -->
+  <div class="section">
+    <div class="table-header">
+      <p class="section-title" style="margin:0;">Gebruikersbeheer</p>
+      <button id="generateInviteBtn" class="btn btn-secondary btn-sm">+ Nodig uit</button>
+    </div>
+    <div id="invitesList" class="trackers-grid">
+      <div class="skeleton" style="height:60px;"></div>
+    </div>
+  </div>
+
   <!-- Logs tabel -->
   <div class="section">
     <div class="table-header">
@@ -422,6 +433,7 @@
   document.getElementById('copyBtn').addEventListener('click', copyLink);
   document.getElementById('refreshBtn').addEventListener('click', loadLogs);
   document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+  document.getElementById('generateInviteBtn').addEventListener('click', generateInvite);
 
   // ── Link genereren ─────────────────────────────────────────────────────────
   async function generateLink() {
@@ -891,7 +903,77 @@ document.addEventListener('DOMContentLoaded', () => {
   loadSummary();
   loadTrackersList();
   loadLogs();
+  loadInvites();
 });
+
+// ── Generate Invite ─────────────────────────────────────────────────────
+async function generateInvite() {
+  try {
+    const res = await fetch('/api/invites', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await res.json();
+    
+    if (data.success) {
+      navigator.clipboard.writeText(data.inviteUrl);
+      showToast(`Invite link gekopieerd! ${data.inviteUrl}`, 'success');
+      loadInvites();
+    } else {
+      showToast('Invite genereren mislukt.', 'error');
+    }
+  } catch (err) {
+    showToast('Netwerkfout bij invite.', 'error');
+  }
+}
+
+// ── Load Invites ───────────────────────────────────────────────────────────
+async function loadInvites() {
+  const container = document.getElementById('invitesList');
+  
+  try {
+    const res = await fetch('/api/invites', { credentials: 'same-origin' });
+    const invites = await res.json();
+    
+    container.innerHTML = '';
+    
+    if (!invites.length) {
+      const msg = document.createElement('p');
+      msg.style.cssText = 'color:var(--muted);padding:12px;font-size:.85rem;';
+      msg.textContent = 'Geen actieve invites.';
+      container.appendChild(msg);
+      return;
+    }
+    
+    invites.forEach(invite => {
+      const card = document.createElement('div');
+      card.className = 'tracker-card';
+      
+      const token = document.createElement('div');
+      token.className = 'meta';
+      token.textContent = `Token: ${invite.invite_token}`;
+      
+      const date = document.createElement('div');
+      date.className = 'meta';
+      date.textContent = `Aangemaakt: ${new Date(invite.created_at).toLocaleString('nl-NL')}`;
+      
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'btn btn-secondary btn-sm';
+      copyBtn.textContent = '📋 Kopieer';
+      copyBtn.onclick = () => {
+        const url = `${window.location.origin}/register?token=${invite.invite_token}`;
+        navigator.clipboard.writeText(url);
+        showToast('Invite link gekopieerd!', 'success');
+      };
+      
+      card.append(token, date, copyBtn);
+      container.appendChild(card);
+    });
+  } catch (err) {
+    console.error('Invites laden mislukt:', err);
+  }
+}
 </script>
 </body>
 </html>

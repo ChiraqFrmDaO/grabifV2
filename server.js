@@ -282,6 +282,11 @@ async function verifyPassword(password, hash) {
   return await bcrypt.compare(password, hash);
 }
 
+// Generate invite token
+function generateInviteToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
 if (process.env.NODE_ENV === 'production' && (ADMIN_USER === 'admin' || ADMIN_PASS === 'change_me')) {
   console.warn('⚠️  WARNING: Using default admin credentials in production!');
 }
@@ -571,6 +576,19 @@ async function initDatabase() {
         await pool.query(`ALTER TABLE trackers ADD COLUMN IF NOT EXISTS management_key TEXT UNIQUE;`);
       } catch (err) {}
 
+      // Create users table
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS users (
+          id SERIAL PRIMARY KEY,
+          username TEXT UNIQUE NOT NULL,
+          email TEXT UNIQUE NOT NULL,
+          password_hash TEXT NOT NULL,
+          role TEXT NOT NULL DEFAULT 'user',
+          invite_token TEXT UNIQUE,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
+      `);
+
       // Create logs table
       await pool.query(`
         CREATE TABLE IF NOT EXISTS logs (
@@ -646,6 +664,19 @@ async function initDatabase() {
       try {
         db.exec(`ALTER TABLE trackers ADD COLUMN management_key TEXT UNIQUE;`);
       } catch (err) {}
+
+      // Create users table
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS users (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          username TEXT UNIQUE NOT NULL,
+          email TEXT UNIQUE NOT NULL,
+          password_hash TEXT NOT NULL,
+          role TEXT NOT NULL DEFAULT 'user',
+          invite_token TEXT UNIQUE,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+      `);
 
       // Create logs table
       db.exec(`
@@ -1140,6 +1171,10 @@ app.get('/login', (req, res) => {
   res.sendFile(path.join(__dirname, 'views/login.html'));
 });
 
+app.get('/register', (req, res) => {
+  res.sendFile(path.join(__dirname, 'views/register.html'));
+});
+
 app.post('/api/login', authLimiter, async (req, res) => {
   const { error, value } = loginSchema.validate(req.body);
   if (error) {
@@ -1149,9 +1184,33 @@ app.post('/api/login', authLimiter, async (req, res) => {
   const { username, password } = value;
   const isJson = req.headers.accept?.includes('application/json') || req.headers['content-type']?.includes('application/json');
 
+  // Check admin credentials first (legacy support)
   if (username === ADMIN_USER && await verifyPassword(password, ADMIN_PASS_HASH)) {
     req.session.authenticated = true;
     req.session.user = username;
+    req.session.role = 'admin';
+    if (isJson) {
+      return res.json({ success: true });
+    }
+    return res.redirect('/admin');
+  }
+
+  // Check users table
+  let user = null;
+  if (useDb) {
+    if (usePostgres) {
+      const { rows } = await pool.query(`SELECT * FROM users WHERE username = $1`, [username]);
+      user = rows[0];
+    } else {
+      const stmt = db.prepare(`SELECT * FROM users WHERE username = ?`);
+      user = stmt.get(username);
+    }
+  }
+
+  if (user && await verifyPassword(password, user.password_hash)) {
+    req.session.authenticated = true;
+    req.session.user = username;
+    req.session.role = user.role;
     if (isJson) {
       return res.json({ success: true });
     }
@@ -1302,6 +1361,99 @@ app.post('/api/manage/:managementKey', async (req, res) => {
   } catch (error) {
     console.error('Management update error:', error);
     res.status(500).json({ error: 'Update failed' });
+  }
+});
+
+// ── User Management ─────────────────────────────────────────────────────────
+// Generate invite token
+app.post('/api/invites', requireAuth, async (req, res) => {
+  try {
+    const inviteToken = generateInviteToken();
+    
+    if (useDb) {
+      if (usePostgres) {
+        await pool.query(`INSERT INTO users (username, email, password_hash, role, invite_token) VALUES ($1, $2, $3, $4, $5)`, 
+          ['pending', inviteToken, '', 'user', inviteToken]);
+      } else {
+        const stmt = db.prepare(`INSERT INTO users (username, email, password_hash, role, invite_token) VALUES (?, ?, ?, ?, ?)`);
+        stmt.run('pending', inviteToken, '', 'user', inviteToken);
+      }
+    }
+    
+    const inviteUrl = `${req.protocol}://${req.get('host')}/register?token=${inviteToken}`;
+    res.json({ success: true, inviteToken, inviteUrl });
+  } catch (error) {
+    console.error('Invite generation error:', error);
+    res.status(500).json({ error: 'Invite generation failed' });
+  }
+});
+
+// List invites
+app.get('/api/invites', requireAuth, async (req, res) => {
+  try {
+    let invites = [];
+    if (useDb) {
+      if (usePostgres) {
+        const { rows } = await pool.query(`SELECT invite_token, created_at FROM users WHERE username = 'pending'`);
+        invites = rows;
+      } else {
+        const stmt = db.prepare(`SELECT invite_token, created_at FROM users WHERE username = 'pending'`);
+        invites = stmt.all();
+      }
+    }
+    res.json(invites);
+  } catch (error) {
+    console.error('List invites error:', error);
+    res.status(500).json({ error: 'Failed to list invites' });
+  }
+});
+
+// Registration with invite token
+app.post('/api/register', async (req, res) => {
+  const { username, email, password, inviteToken } = req.body;
+  
+  try {
+    // Validate invite token
+    let validInvite = false;
+    if (useDb) {
+      if (usePostgres) {
+        const { rows } = await pool.query(`SELECT * FROM users WHERE invite_token = $1 AND username = 'pending'`, [inviteToken]);
+        validInvite = rows.length > 0;
+      } else {
+        const stmt = db.prepare(`SELECT * FROM users WHERE invite_token = ? AND username = 'pending'`);
+        validInvite = stmt.get(inviteToken);
+      }
+    }
+    
+    if (!validInvite) {
+      return res.status(400).json({ error: 'Ongeldige invite token' });
+    }
+    
+    // Hash password
+    const passwordHash = await hashPassword(password);
+    
+    // Update user
+    if (useDb) {
+      if (usePostgres) {
+        await pool.query(`
+          UPDATE users 
+          SET username = $1, email = $2, password_hash = $3, invite_token = NULL 
+          WHERE invite_token = $4
+        `, [username, email, passwordHash, inviteToken]);
+      } else {
+        const stmt = db.prepare(`
+          UPDATE users 
+          SET username = ?, email = ?, password_hash = ?, invite_token = NULL 
+          WHERE invite_token = ?
+        `);
+        stmt.run(username, email, passwordHash, inviteToken);
+      }
+    }
+    
+    res.json({ success: true, message: 'Account aangemaakt. Je kunt nu inloggen.' });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ error: 'Registratie mislukt' });
   }
 });
 

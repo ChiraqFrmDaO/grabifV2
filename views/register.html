@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Registratie</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #07080f;
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card {
+      background: #0d0f1d;
+      padding: 40px;
+      border-radius: 20px;
+      width: 100%;
+      max-width: 400px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    h1 { margin-bottom: 20px; text-align: center; }
+    .field { margin-bottom: 20px; }
+    label { display: block; margin-bottom: 8px; color: #64748b; }
+    input {
+      width: 100%;
+      padding: 12px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 16px;
+    }
+    input:focus { outline: none; border-color: #38bdf8; }
+    button {
+      width: 100%;
+      padding: 12px;
+      background: #38bdf8;
+      color: #0b1219;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover { opacity: 0.9; }
+    .error { color: #ef4444; margin-top: 10px; text-align: center; }
+    .success { color: #22c55e; margin-top: 10px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Registratie</h1>
+    <div class="field">
+      <label>Gebruikersnaam</label>
+      <input type="text" id="username">
+    </div>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="email">
+    </div>
+    <div class="field">
+      <label>Wachtwoord</label>
+      <input type="password" id="password">
+    </div>
+    <div class="field">
+      <label>Invite Token</label>
+      <input type="text" id="inviteToken">
+    </div>
+    <button onclick="register()">Registreren</button>
+    <div id="message"></div>
+  </div>
+  <script>
+    async function register() {
+      const username = document.getElementById('username').value;
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const inviteToken = document.getElementById('inviteToken').value;
+      const msg = document.getElementById('message');
+
+      if (!username || !email || !password || !inviteToken) {
+        msg.className = 'error';
+        msg.textContent = 'Vul alle velden in.';
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, email, password, inviteToken })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          msg.className = 'success';
+          msg.textContent = data.message;
+          setTimeout(() => window.location.href = '/login', 2000);
+        } else {
+          msg.className = 'error';
+          msg.textContent = data.error;
+        }
+      } catch (err) {
+        msg.className = 'error';
+        msg.textContent = 'Registratie mislukt.';
+      }
+    }
+
+    // Get token from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    if (token) {
+      document.getElementById('inviteToken').value = token;
+    }
+  </script>
+</body>
+</html>
