@@ -160,35 +160,103 @@
       25% { transform: translateX(-4px); }
       75% { transform: translateX(4px); }
     }
+
+    .lang-selector {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(255,255,255,.05);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      color: var(--muted);
+      transition: all 0.2s;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .lang-selector:hover {
+      color: var(--text);
+      border-color: var(--accent);
+    }
   </style>
 </head>
 <body>
+  <button id="langBtn" class="lang-selector">🌐 NL</button>
+
   <div class="login-box">
     <h1>R3DIR3CT</h1>
-    <p class="subtitle">Dashboard Login</p>
+    <p class="subtitle" data-i18n="subtitle">Dashboard Login</p>
 
     <div id="error" class="error"></div>
 
     <form id="loginForm" action="/api/login" method="post">
       <div class="field">
-        <label for="username">Username</label>
+        <label for="username" data-i18n="username">Username</label>
         <input type="text" id="username" name="username" autocomplete="username" required autofocus>
       </div>
 
       <div class="field">
-        <label for="password">Password</label>
+        <label for="password" data-i18n="password">Password</label>
         <input type="password" id="password" name="password" autocomplete="current-password" required>
       </div>
 
-      <button type="submit" class="btn" id="submitBtn">Login</button>
+      <button type="submit" class="btn" id="submitBtn" data-i18n="login">Login</button>
     </form>
 
     <div style="text-align: center; margin-top: 20px;">
-      <a href="/register" style="color: var(--muted); font-size: 0.85rem; text-decoration: none; transition: color 0.2s;">Nog geen account? <span style="color: var(--accent);">Registreren</span></a>
+      <a href="/register" style="color: var(--muted); font-size: 0.85rem; text-decoration: none; transition: color 0.2s;">
+        <span data-i18n="noAccount">Nog geen account?</span> <span style="color: var(--accent);" data-i18n="register">Registreren</span>
+      </a>
     </div>
   </div>
 
   <script>
+    // ── Translations ─────────────────────────────────────────────────────────
+    const translations = {
+      nl: {
+        subtitle: 'Dashboard Login',
+        username: 'Gebruikersnaam',
+        password: 'Wachtwoord',
+        login: 'Inloggen',
+        noAccount: 'Nog geen account?',
+        register: 'Registreren',
+        loginFailed: 'Ongeldige gebruikersnaam of wachtwoord.',
+        networkError: 'Netwerkfout opgetreden.',
+        loading: 'Bezig...'
+      },
+      en: {
+        subtitle: 'Dashboard Login',
+        username: 'Username',
+        password: 'Password',
+        login: 'Login',
+        noAccount: "Don't have an account?",
+        register: 'Register',
+        loginFailed: 'Invalid username or password.',
+        networkError: 'Network error occurred.',
+        loading: 'Loading...'
+      }
+    };
+
+    let currentLang = localStorage.getItem('lang') || 'nl';
+
+    function setLanguage(lang) {
+      currentLang = lang;
+      localStorage.setItem('lang', lang);
+      document.getElementById('langBtn').textContent = lang === 'nl' ? '🌐 NL' : '🌐 EN';
+
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (translations[lang][key]) {
+          el.textContent = translations[lang][key];
+        }
+      });
+    }
+
+    function t(key) {
+      return translations[currentLang][key] || key;
+    }
+
     async function handleLogin(event) {
       event.preventDefault();
 
@@ -199,7 +267,7 @@
 
       errorEl.classList.remove('show');
       submitBtn.disabled = true;
-      submitBtn.textContent = 'Bezig…';
+      submitBtn.textContent = t('loading');
 
       try {
         const res = await fetch('/api/login', {
@@ -214,19 +282,24 @@
         if (res.ok && data.success) {
           window.location.href = '/admin';
         } else {
-          errorEl.textContent = data.error || 'Login failed.';
+          errorEl.textContent = data.error || t('loginFailed');
           errorEl.classList.add('show');
         }
       } catch (err) {
-        errorEl.textContent = 'Network error occurred.';
+        errorEl.textContent = t('networkError');
         errorEl.classList.add('show');
       } finally {
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Login';
+        submitBtn.textContent = t('login');
       }
     }
 
     document.getElementById('loginForm').addEventListener('submit', handleLogin);
+    document.getElementById('langBtn').addEventListener('click', () => {
+      setLanguage(currentLang === 'nl' ? 'en' : 'nl');
+    });
+
+    setLanguage(currentLang);
   </script>
 </body>
 </html>
