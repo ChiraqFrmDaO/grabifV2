@@ -123,9 +123,29 @@
       font-size: 0.88rem;
       color: rgba(255,255,255,0.45);
     }
+    .lang-selector {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      color: rgba(255,255,255,.6);
+      transition: all 0.2s;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+    }
+    .lang-selector:hover {
+      color: #fff;
+      border-color: rgba(0,255,136,.5);
+    }
   </style>
 </head>
 <body data-destination-url="{{DESTINATION_URL}}" data-tracker-id="{{TRACKER_ID}}">
+  <button id="langBtn" class="lang-selector">🌐 NL</button>
+
   <div class="card">
     <div class="logo">R3DIR3CT</div>
 
@@ -137,12 +157,46 @@
       <div class="countdown-number" id="countdown">3</div>
     </div>
 
-    <p class="message">You are being redirected.</p>
+    <p class="message" data-i18n="message">You are being redirected.</p>
     <div class="destination" id="targetLink"></div>
-    <p class="status" id="status">Please wait…</p>
+    <p class="status" id="status" data-i18n="wait">Please wait…</p>
   </div>
 
   <script>
+    const translations = {
+      nl: {
+        message: 'Je wordt doorgestuurd.',
+        wait: 'Even geduld…',
+        redirecting: 'Doorsturen…',
+        redirectIn: 'Doorsturen in'
+      },
+      en: {
+        message: 'You are being redirected.',
+        wait: 'Please wait…',
+        redirecting: 'Redirecting…',
+        redirectIn: 'Redirecting in'
+      }
+    };
+
+    let currentLang = localStorage.getItem('lang') || 'nl';
+
+    function setLanguage(lang) {
+      currentLang = lang;
+      localStorage.setItem('lang', lang);
+      document.getElementById('langBtn').textContent = lang === 'nl' ? '🌐 NL' : '🌐 EN';
+
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (translations[lang][key]) {
+          el.textContent = translations[lang][key];
+        }
+      });
+    }
+
+    function t(key) {
+      return translations[currentLang][key] || key;
+    }
+
     // Waarden worden door de server veilig in data-attributen geplaatst
     const targetUrl = document.body.dataset.destinationUrl;
     const trackerId = document.body.dataset.trackerId;
@@ -231,17 +285,22 @@
         if (elapsed >= totalMs) {
           clearInterval(timer);
           countdownEl.textContent   = '0';
-          statusEl.textContent      = 'Doorsturen…';
+          statusEl.textContent      = t('redirecting');
           ring.style.strokeDashoffset = circumference;
           window.location.replace(targetUrl);
           return;
         }
 
         countdownEl.textContent = countdown;
-        statusEl.textContent    = `Doorsturen in ${countdown}…`;
+        statusEl.textContent    = `${t('redirectIn')} ${countdown}…`;
       }, 200);
     }
 
+    document.getElementById('langBtn').addEventListener('click', () => {
+      setLanguage(currentLang === 'nl' ? 'en' : 'nl');
+    });
+
+    setLanguage(currentLang);
     beginRedirect();
   </script>
 </body>

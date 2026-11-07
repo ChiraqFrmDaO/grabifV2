@@ -90,13 +90,67 @@
       h1 { margin-bottom: 12px; }
       .sub { margin-bottom: 32px; }
     }
+    .lang-selector {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      color: rgba(255,255,255,.6);
+      transition: all 0.2s;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .lang-selector:hover {
+      color: #fff;
+      border-color: rgba(0,255,136,.5);
+    }
   </style>
 </head>
 <body>
+  <button id="langBtn" class="lang-selector">🌐 NL</button>
+
   <div class="center">
     <h1>R3DIR3CT</h1>
-    <p class="sub">Advanced Re-direction &amp; Analytics</p>
-    <a href="/admin" class="btn">LOGIN ADMIN ENVIRONMENT →</a>
+    <p class="sub" data-i18n="subtitle">Advanced Re-direction &amp; Analytics</p>
+    <a href="/admin" class="btn" data-i18n="loginBtn">LOGIN ADMIN ENVIRONMENT →</a>
   </div>
+
+  <script>
+    const translations = {
+      nl: {
+        subtitle: 'Geavanceerde Redirect & Analytics',
+        loginBtn: 'LOGIN ADMIN OMGEVING →'
+      },
+      en: {
+        subtitle: 'Advanced Re-direction & Analytics',
+        loginBtn: 'LOGIN ADMIN ENVIRONMENT →'
+      }
+    };
+
+    let currentLang = localStorage.getItem('lang') || 'nl';
+
+    function setLanguage(lang) {
+      currentLang = lang;
+      localStorage.setItem('lang', lang);
+      document.getElementById('langBtn').textContent = lang === 'nl' ? '🌐 NL' : '🌐 EN';
+
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (translations[lang][key]) {
+          el.textContent = translations[lang][key];
+        }
+      });
+    }
+
+    document.getElementById('langBtn').addEventListener('click', () => {
+      setLanguage(currentLang === 'nl' ? 'en' : 'nl');
+    });
+
+    setLanguage(currentLang);
+  </script>
 </body>
 </html>
