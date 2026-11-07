@@ -80,31 +80,97 @@
     button:hover { opacity: 0.9; }
     .error { color: var(--red); margin-top: 15px; text-align: center; font-size: 0.9rem; }
     .success { color: var(--green); margin-top: 15px; text-align: center; font-size: 0.9rem; }
+    .lang-selector {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(255,255,255,.05);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      color: var(--muted);
+      transition: all 0.2s;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .lang-selector:hover {
+      color: var(--text);
+      border-color: var(--accent);
+    }
   </style>
 </head>
 <body>
+  <button id="langBtn" class="lang-selector">🌐 NL</button>
+
   <div class="card">
-    <h1>Registratie</h1>
+    <h1 data-i18n="title">Registratie</h1>
     <div class="field">
-      <label>Gebruikersnaam</label>
+      <label data-i18n="username">Gebruikersnaam</label>
       <input type="text" id="username">
     </div>
     <div class="field">
-      <label>Email</label>
+      <label data-i18n="email">Email</label>
       <input type="email" id="email">
     </div>
     <div class="field">
-      <label>Wachtwoord</label>
+      <label data-i18n="password">Wachtwoord</label>
       <input type="password" id="password">
     </div>
     <div class="field">
-      <label>Invite Token</label>
+      <label data-i18n="inviteToken">Invite Token</label>
       <input type="text" id="inviteToken">
     </div>
-    <button onclick="register()">Registreren</button>
+    <button onclick="register()" data-i18n="register">Registreren</button>
     <div id="message"></div>
   </div>
   <script>
+    const translations = {
+      nl: {
+        title: 'Registratie',
+        username: 'Gebruikersnaam',
+        email: 'Email',
+        password: 'Wachtwoord',
+        inviteToken: 'Invite Token',
+        register: 'Registreren',
+        fillAll: 'Vul alle velden in.',
+        registerSuccess: 'Registratie succesvol!',
+        registerFailed: 'Registratie mislukt.',
+        networkError: 'Netwerkfout bij registratie.'
+      },
+      en: {
+        title: 'Registration',
+        username: 'Username',
+        email: 'Email',
+        password: 'Password',
+        inviteToken: 'Invite Token',
+        register: 'Register',
+        fillAll: 'Please fill all fields.',
+        registerSuccess: 'Registration successful!',
+        registerFailed: 'Registration failed.',
+        networkError: 'Network error during registration.'
+      }
+    };
+
+    let currentLang = localStorage.getItem('lang') || 'nl';
+
+    function setLanguage(lang) {
+      currentLang = lang;
+      localStorage.setItem('lang', lang);
+      document.getElementById('langBtn').textContent = lang === 'nl' ? '🌐 NL' : '🌐 EN';
+
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (translations[lang][key]) {
+          el.textContent = translations[lang][key];
+        }
+      });
+    }
+
+    function t(key) {
+      return translations[currentLang][key] || key;
+    }
+
     async function register() {
       const username = document.getElementById('username').value;
       const email = document.getElementById('email').value;
@@ -114,7 +180,7 @@
 
       if (!username || !email || !password || !inviteToken) {
         msg.className = 'error';
-        msg.textContent = 'Vul alle velden in.';
+        msg.textContent = t('fillAll');
         return;
       }
 
@@ -136,7 +202,7 @@
         }
       } catch (err) {
         msg.className = 'error';
-        msg.textContent = 'Registratie mislukt.';
+        msg.textContent = t('registerFailed');
       }
     }
 
@@ -146,6 +212,12 @@
     if (token) {
       document.getElementById('inviteToken').value = token;
     }
+
+    document.getElementById('langBtn').addEventListener('click', () => {
+      setLanguage(currentLang === 'nl' ? 'en' : 'nl');
+    });
+
+    setLanguage(currentLang);
   </script>
 </body>
 </html>
