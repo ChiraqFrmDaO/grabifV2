@@ -94,6 +94,39 @@
       background: rgba(239, 68, 68, 0.25);
     }
 
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 16px;
+    }
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      padding: 10px 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      border-radius: 8px;
+    }
+    .tab-btn:hover {
+      color: var(--text);
+      background: rgba(255,255,255,.05);
+    }
+    .tab-btn.active {
+      color: var(--accent);
+      background: rgba(56, 189, 248, 0.1);
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+
     .section {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -198,27 +231,35 @@
         <span id="username">Loading...</span>
         <span class="role" id="userRole">-</span>
       </div>
+      <button id="langBtn" class="lang-selector">🌐 NL</button>
       <button id="backBtn" class="btn btn-secondary btn-sm">← Dashboard</button>
       <button id="logoutBtn" class="logout-btn">↪ Uitloggen</button>
     </div>
   </header>
 
   <div class="section">
-    <div class="table-header">
-      <p class="section-title" style="margin:0;">Users</p>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="users">Users</button>
+      <button class="tab-btn" data-tab="invites">Invites</button>
     </div>
-    <div id="usersList" class="invites-grid">
-      <div class="skeleton" style="height:60px;"></div>
-    </div>
-  </div>
 
-  <div class="section">
-    <div class="table-header">
-      <p class="section-title" style="margin:0;">Invites</p>
-      <button id="generateInviteBtn" class="btn btn-primary">+ Nieuwe Invite</button>
+    <div id="usersTab" class="tab-content active">
+      <div class="table-header">
+        <p class="section-title" style="margin:0;">Users</p>
+      </div>
+      <div id="usersList" class="invites-grid">
+        <div class="skeleton" style="height:60px;"></div>
+      </div>
     </div>
-    <div id="invitesList" class="invites-grid">
-      <div class="skeleton" style="height:60px;"></div>
+
+    <div id="invitesTab" class="tab-content">
+      <div class="table-header">
+        <p class="section-title" style="margin:0;">Invites</p>
+        <button id="generateInviteBtn" class="btn btn-primary">+ Nieuwe Invite</button>
+      </div>
+      <div id="invitesList" class="invites-grid">
+        <div class="skeleton" style="height:60px;"></div>
+      </div>
     </div>
   </div>
 
@@ -416,6 +457,21 @@
       showToast('Netwerkfout bij role wijzigen.', 'error');
     }
   }
+
+  // Tab switching
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.getAttribute('data-tab');
+
+      // Update buttons
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      // Update content
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+      document.getElementById(`${tab}Tab`).classList.add('active');
+    });
+  });
 
   document.addEventListener('DOMContentLoaded', () => {
     loadUserInfo();
