@@ -223,8 +223,8 @@
 
   <header>
     <div>
-      <h1>Admin Panel</h1>
-      <span>User Management & Invites</span>
+      <h1 data-i18n="adminPanel">Admin Panel</h1>
+      <span data-i18n="subtitle">User Management & Invites</span>
     </div>
     <div class="user-info">
       <div class="user-badge">
@@ -232,20 +232,20 @@
         <span class="role" id="userRole">-</span>
       </div>
       <button id="langBtn" class="lang-selector">🌐 NL</button>
-      <button id="backBtn" class="btn btn-secondary btn-sm">← Dashboard</button>
-      <button id="logoutBtn" class="logout-btn">↪ Uitloggen</button>
+      <button id="backBtn" class="btn btn-secondary btn-sm" data-i18n="backBtn">← Dashboard</button>
+      <button id="logoutBtn" class="logout-btn" data-i18n="logoutBtn">↪ Uitloggen</button>
     </div>
   </header>
 
   <div class="section">
     <div class="tabs">
-      <button class="tab-btn active" data-tab="users">Users</button>
-      <button class="tab-btn" data-tab="invites">Invites</button>
+      <button class="tab-btn active" data-tab="users" data-i18n="usersTab">Users</button>
+      <button class="tab-btn" data-tab="invites" data-i18n="invitesTab">Invites</button>
     </div>
 
     <div id="usersTab" class="tab-content active">
       <div class="table-header">
-        <p class="section-title" style="margin:0;">Users</p>
+        <p class="section-title" style="margin:0;" data-i18n="usersTitle">Users</p>
       </div>
       <div id="usersList" class="invites-grid">
         <div class="skeleton" style="height:60px;"></div>
@@ -254,8 +254,8 @@
 
     <div id="invitesTab" class="tab-content">
       <div class="table-header">
-        <p class="section-title" style="margin:0;">Invites</p>
-        <button id="generateInviteBtn" class="btn btn-primary">+ Nieuwe Invite</button>
+        <p class="section-title" style="margin:0;" data-i18n="invitesTitle">Invites</p>
+        <button id="generateInviteBtn" class="btn btn-primary" data-i18n="newInvite">+ Nieuwe Invite</button>
       </div>
       <div id="invitesList" class="invites-grid">
         <div class="skeleton" style="height:60px;"></div>
@@ -270,6 +270,93 @@
 <script>
   'use strict';
 
+  // ── Translations ─────────────────────────────────────────────────────────
+  const translations = {
+    nl: {
+      adminPanel: 'Admin Panel',
+      subtitle: 'User Management & Invites',
+      backBtn: '← Dashboard',
+      logoutBtn: '↪ Uitloggen',
+      usersTab: 'Users',
+      invitesTab: 'Invites',
+      usersTitle: 'Users',
+      invitesTitle: 'Invites',
+      newInvite: '+ Nieuwe Invite',
+      user: 'User',
+      email: 'Email',
+      role: 'Role',
+      makeAdmin: '↑ Make Admin',
+      makeUser: '↓ Make User',
+      token: 'Token',
+      created: 'Aangemaakt',
+      copyInvite: '📋 Kopieer',
+      inviteLink: 'Invite link gekopieerd!',
+      inviteFailed: 'Invite genereren mislukt.',
+      inviteNetworkError: 'Netwerkfout bij invite.',
+      inviteSuccess: 'Invite link gekopieerd!',
+      noUsers: 'Geen users gevonden.',
+      noInvites: 'Geen actieve invites.',
+      roleChanged: 'User is nu',
+      roleChangeFailed: 'Role wijzigen mislukt.',
+      roleNetworkError: 'Netwerkfout bij role wijzigen.',
+      confirmLogout: 'Weet je zeker dat je wilt uitloggen?',
+      logoutError: 'Fout bij uitloggen.'
+    },
+    en: {
+      adminPanel: 'Admin Panel',
+      subtitle: 'User Management & Invites',
+      backBtn: '← Dashboard',
+      logoutBtn: '↪ Logout',
+      usersTab: 'Users',
+      invitesTab: 'Invites',
+      usersTitle: 'Users',
+      invitesTitle: 'Invites',
+      newInvite: '+ New Invite',
+      user: 'User',
+      email: 'Email',
+      role: 'Role',
+      makeAdmin: '↑ Make Admin',
+      makeUser: '↓ Make User',
+      token: 'Token',
+      created: 'Created',
+      copyInvite: '📋 Copy',
+      inviteLink: 'Invite link copied!',
+      inviteFailed: 'Invite generation failed.',
+      inviteNetworkError: 'Network error on invite.',
+      inviteSuccess: 'Invite link copied!',
+      noUsers: 'No users found.',
+      noInvites: 'No active invites.',
+      roleChanged: 'User is now',
+      roleChangeFailed: 'Role change failed.',
+      roleNetworkError: 'Network error on role change.',
+      confirmLogout: 'Are you sure you want to logout?',
+      logoutError: 'Logout error.'
+    }
+  };
+
+  let currentLang = localStorage.getItem('lang') || 'nl';
+
+  function setLanguage(lang) {
+    currentLang = lang;
+    localStorage.setItem('lang', lang);
+    document.getElementById('langBtn').textContent = lang === 'nl' ? '🌐 NL' : '🌐 EN';
+
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.getAttribute('data-i18n');
+      if (translations[lang][key]) {
+        el.textContent = translations[lang][key];
+      }
+    });
+
+    // Re-render dynamic content
+    loadUsers();
+    loadInvites();
+  }
+
+  function t(key) {
+    return translations[currentLang][key] || key;
+  }
+
   function showToast(msg, type = 'success') {
     const el = document.getElementById('toast');
     el.textContent = msg;
@@ -282,16 +369,19 @@
   });
 
   document.getElementById('logoutBtn').addEventListener('click', logout);
+  document.getElementById('langBtn').addEventListener('click', () => {
+    setLanguage(currentLang === 'nl' ? 'en' : 'nl');
+  });
 
   async function logout() {
-    if (!confirm('Weet je zeker dat je wilt uitloggen?')) return;
+    if (!confirm(t('confirmLogout'))) return;
     try {
       const res = await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
       if (res.ok) {
         window.location.href = '/login';
       }
     } catch (err) {
-      alert('Fout bij uitloggen.');
+      alert(t('logoutError'));
     }
   }
 
@@ -338,45 +428,46 @@
 
   async function loadInvites() {
     const container = document.getElementById('invitesList');
-    
+
     try {
       const res = await fetch('/api/invites', { credentials: 'same-origin' });
       const invites = await res.json();
-      
+
       container.innerHTML = '';
-      
+
       if (!invites.length) {
         const msg = document.createElement('p');
         msg.style.cssText = 'color:var(--muted);padding:12px;font-size:.85rem;';
-        msg.textContent = 'Geen actieve invites.';
+        msg.textContent = t('noInvites');
         container.appendChild(msg);
         return;
       }
-      
+
       invites.forEach(invite => {
         const card = document.createElement('div');
         card.className = 'invite-card';
-        
+
         const token = document.createElement('div');
         token.className = 'meta';
-        token.textContent = `Token: ${invite.invite_token}`;
-        
+        token.textContent = `${t('token')}: ${invite.invite_token}`;
+
         const date = document.createElement('div');
         date.className = 'meta';
-        date.textContent = `Aangemaakt: ${new Date(invite.created_at).toLocaleString('nl-NL')}`;
-        
+        const locale = currentLang === 'nl' ? 'nl-NL' : 'en-US';
+        date.textContent = `${t('created')}: ${new Date(invite.created_at).toLocaleString(locale)}`;
+
         const actions = document.createElement('div');
         actions.className = 'actions';
-        
+
         const copyBtn = document.createElement('button');
         copyBtn.className = 'btn btn-secondary btn-sm';
-        copyBtn.textContent = '📋 Kopieer';
+        copyBtn.textContent = t('copyInvite');
         copyBtn.onclick = () => {
           const url = `${window.location.origin}/register?token=${invite.invite_token}`;
           navigator.clipboard.writeText(url);
-          showToast('Invite link gekopieerd!', 'success');
+          showToast(t('inviteLink'), 'success');
         };
-        
+
         actions.appendChild(copyBtn);
         card.append(token, date, actions);
         container.appendChild(card);
@@ -398,7 +489,7 @@
       if (!users.length) {
         const msg = document.createElement('p');
         msg.style.cssText = 'color:var(--muted);padding:12px;font-size:.85rem;';
-        msg.textContent = 'Geen users gevonden.';
+        msg.textContent = t('noUsers');
         container.appendChild(msg);
         return;
       }
@@ -409,22 +500,22 @@
 
         const username = document.createElement('div');
         username.className = 'meta';
-        username.textContent = `User: ${user.username}`;
+        username.textContent = `${t('user')}: ${user.username}`;
 
         const email = document.createElement('div');
         email.className = 'meta';
-        email.textContent = `Email: ${user.email}`;
+        email.textContent = `${t('email')}: ${user.email}`;
 
         const role = document.createElement('div');
         role.className = 'meta';
-        role.textContent = `Role: ${user.role}`;
+        role.textContent = `${t('role')}: ${user.role}`;
 
         const actions = document.createElement('div');
         actions.className = 'actions';
 
         const toggleRoleBtn = document.createElement('button');
         toggleRoleBtn.className = 'btn btn-secondary btn-sm';
-        toggleRoleBtn.textContent = user.role === 'admin' ? '↓ Make User' : '↑ Make Admin';
+        toggleRoleBtn.textContent = user.role === 'admin' ? t('makeUser') : t('makeAdmin');
         toggleRoleBtn.onclick = () => toggleUserRole(user.username, user.role);
 
         actions.appendChild(toggleRoleBtn);
@@ -448,13 +539,13 @@
       const data = await res.json();
 
       if (data.success) {
-        showToast(`User "${username}" is nu ${newRole}!`, 'success');
+        showToast(`${t('roleChanged')} "${username}" ${newRole}!`, 'success');
         loadUsers();
       } else {
-        showToast('Role wijzigen mislukt.', 'error');
+        showToast(t('roleChangeFailed'), 'error');
       }
     } catch (err) {
-      showToast('Netwerkfout bij role wijzigen.', 'error');
+      showToast(t('roleNetworkError'), 'error');
     }
   }
 
@@ -474,6 +565,7 @@
   });
 
   document.addEventListener('DOMContentLoaded', () => {
+    setLanguage(currentLang);
     loadUserInfo();
     loadUsers();
     loadInvites();
