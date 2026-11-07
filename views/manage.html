@@ -53,6 +53,20 @@
       color: var(--muted);
       letter-spacing: .05em;
     }
+    .lang-selector {
+      background: rgba(255,255,255,.05);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 4px 8px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      color: var(--muted);
+      transition: all 0.2s;
+    }
+    .lang-selector:hover {
+      color: var(--text);
+      border-color: var(--accent);
+    }
 
     .section {
       background: var(--surface);
@@ -152,38 +166,41 @@
 <div class="container">
 
   <header>
-    <h1>Tracker Beheer</h1>
-    <span>Management Link</span>
+    <div>
+      <h1 data-i18n="title">Tracker Beheer</h1>
+      <span data-i18n="subtitle">Management Link</span>
+    </div>
+    <button id="langBtn" class="lang-selector">🌐 NL</button>
   </header>
 
   <div class="section">
-    <p class="section-title">Tracker Info</p>
+    <p class="section-title" data-i18n="trackerInfo">Tracker Info</p>
     <div class="info-grid">
       <div class="info-item">
-        <strong>Naam</strong>
+        <strong data-i18n="name">Naam</strong>
         <span id="trackerName">{{TRACKER_NAME}}</span>
       </div>
       <div class="info-item">
-        <strong>ID</strong>
+        <strong data-i18n="id">ID</strong>
         <span id="trackerId">{{TRACKER_ID}}</span>
       </div>
     </div>
   </div>
 
   <div class="section">
-    <p class="section-title">Instellingen</p>
+    <p class="section-title" data-i18n="settings">Instellingen</p>
 
     <div class="field">
-      <label for="name">Naam</label>
+      <label for="name" data-i18n="name">Naam</label>
       <input type="text" id="name" value="{{TRACKER_NAME}}">
     </div>
 
     <div class="field">
-      <label for="destination">Doel-URL (https://)</label>
+      <label for="destination" data-i18n="destination">Doel-URL (https://)</label>
       <input type="text" id="destination" value="{{DESTINATION_URL}}">
     </div>
 
-    <button class="btn btn-primary" id="saveBtn">
+    <button class="btn btn-primary" id="saveBtn" data-i18n="save">
       💾 Opslaan
     </button>
   </div>
@@ -194,6 +211,58 @@
 
 <script>
   'use strict';
+
+  const translations = {
+    nl: {
+      title: 'Tracker Beheer',
+      subtitle: 'Management Link',
+      trackerInfo: 'Tracker Info',
+      name: 'Naam',
+      id: 'ID',
+      settings: 'Instellingen',
+      destination: 'Doel-URL (https://)',
+      save: '💾 Opslaan',
+      saved: 'Opgeslagen!',
+      saving: 'Opslaan...',
+      error: 'Fout bij opslaan.',
+      fillAll: 'Vul alle velden in.',
+      invalidUrl: 'Doel-URL moet beginnen met https://'
+    },
+    en: {
+      title: 'Tracker Management',
+      subtitle: 'Management Link',
+      trackerInfo: 'Tracker Info',
+      name: 'Name',
+      id: 'ID',
+      settings: 'Settings',
+      destination: 'Destination URL (https://)',
+      save: '💾 Save',
+      saved: 'Saved!',
+      saving: 'Saving...',
+      error: 'Save error.',
+      fillAll: 'Please fill all fields.',
+      invalidUrl: 'Destination URL must start with https://'
+    }
+  };
+
+  let currentLang = localStorage.getItem('lang') || 'nl';
+
+  function setLanguage(lang) {
+    currentLang = lang;
+    localStorage.setItem('lang', lang);
+    document.getElementById('langBtn').textContent = lang === 'nl' ? '🌐 NL' : '🌐 EN';
+
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.getAttribute('data-i18n');
+      if (translations[lang][key]) {
+        el.textContent = translations[lang][key];
+      }
+    });
+  }
+
+  function t(key) {
+    return translations[currentLang][key] || key;
+  }
 
   const managementKey = '{{MANAGEMENT_KEY}}';
 
@@ -209,18 +278,18 @@
     const destination = document.getElementById('destination').value.trim();
 
     if (!name || !destination) {
-      showToast('Vul alle velden in.', 'error');
+      showToast(t('fillAll'), 'error');
       return;
     }
 
     if (!destination.startsWith('https://')) {
-      showToast('Doel-URL moet beginnen met https://', 'error');
+      showToast(t('invalidUrl'), 'error');
       return;
     }
 
     const btn = document.getElementById('saveBtn');
     btn.disabled = true;
-    btn.textContent = 'Bezig…';
+    btn.textContent = t('saving');
 
     try {
       const res = await fetch(`/api/manage/${managementKey}`, {
@@ -232,20 +301,27 @@
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        showToast(data.error || 'Opslaan mislukt.', 'error');
+        showToast(data.error || t('error'), 'error');
         return;
       }
 
-      showToast('Instellingen opgeslagen!', 'success');
-      
+      showToast(t('saved'), 'success');
+
       // Update UI
       document.getElementById('trackerName').textContent = data.tracker.name;
     } catch (err) {
-      showToast('Netwerkfout bij opslaan.', 'error');
+      showToast(t('error'), 'error');
     } finally {
       btn.disabled = false;
-      btn.textContent = '💾 Opslaan';
+      btn.textContent = t('save');
     }
+  });
+
+  document.getElementById('langBtn').addEventListener('click', () => {
+    setLanguage(currentLang === 'nl' ? 'en' : 'nl');
+  });
+
+  setLanguage(currentLang);
   });
 </script>
 </body>
