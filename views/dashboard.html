@@ -94,6 +94,20 @@
     .logout-btn:hover {
       background: rgba(239, 68, 68, 0.25);
     }
+    .lang-selector {
+      background: rgba(255,255,255,.05);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 4px 8px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      color: var(--muted);
+      transition: all 0.2s;
+    }
+    .lang-selector:hover {
+      color: var(--text);
+      border-color: var(--accent);
+    }
 
     .section {
       background: var(--surface);
@@ -320,15 +334,16 @@
   <header>
     <div>
       <h1>R3DIR3Ct</h1>
-      <span>IP Tracking Dashboard</span>
+      <span data-i18n="dashboardSubtitle">IP Tracking Dashboard</span>
     </div>
     <div class="user-info">
       <div class="user-badge">
         <span id="username">Loading...</span>
         <span class="role" id="userRole">-</span>
       </div>
-      <button id="usersBtn" class="btn btn-secondary btn-sm" style="display: none;">👥 Gebruikers</button>
-      <button id="logoutBtn" class="logout-btn">↪ Uitloggen</button>
+      <button id="langBtn" class="lang-selector">🌐 NL</button>
+      <button id="usersBtn" class="btn btn-secondary btn-sm" style="display: none;" data-i18n="usersBtn">👥 Gebruikers</button>
+      <button id="logoutBtn" class="logout-btn" data-i18n="logoutBtn">↪ Uitloggen</button>
     </div>
   </header>
 
@@ -436,6 +451,111 @@
 <script>
   'use strict';
 
+  // ── Translations ─────────────────────────────────────────────────────────
+  const translations = {
+    nl: {
+      dashboardSubtitle: 'IP Tracking Dashboard',
+      usersBtn: '👥 Gebruikers',
+      logoutBtn: '↪ Uitloggen',
+      overview: 'Overzicht',
+      totalTrackers: 'Trackers',
+      totalClicks: 'Klikken',
+      uniqueIPs: 'Unieke IPs',
+      createTracker: 'Nieuwe Tracker',
+      name: 'Naam',
+      destination: 'Bestemming',
+      domain: 'Domein',
+      generate: 'Genereren',
+      copy: 'Kopieer',
+      logs: 'Logs',
+      refresh: 'Verversen',
+      noLogs: 'Nog geen logs.',
+      export: 'Exporteer',
+      manageTrackers: 'Trackers Beheren',
+      noTrackers: 'Nog geen trackers.',
+      destination: 'Bestemming',
+      link: 'Link',
+      management: 'Management',
+      open: 'Open',
+      details: 'Logdetails',
+      confirmLogout: 'Weet je zeker dat je wilt uitloggen?',
+      logoutError: 'Fout bij uitloggen.',
+      linkCopied: 'Link gekopieerd!',
+      destinationCopied: 'Bestemming gekopieerd!',
+      managementCopied: 'Management link gekopieerd!',
+      fillAllFields: 'Vul alle velden in.',
+      generating: 'Bezig...',
+      generatingError: 'Link genereren mislukt.',
+      trackerCreated: 'Tracker aangemaakt!',
+      loadingFailed: 'Laden mislukt.',
+      manage: 'Beheren',
+      delete: 'Verwijderen',
+      confirmDelete: 'Weet je zeker dat je deze tracker wilt verwijderen?',
+      deleteError: 'Verwijderen mislukt.',
+      trackerDeleted: 'Tracker verwijderd!'
+    },
+    en: {
+      dashboardSubtitle: 'IP Tracking Dashboard',
+      usersBtn: '👥 Users',
+      logoutBtn: '↪ Logout',
+      overview: 'Overview',
+      totalTrackers: 'Trackers',
+      totalClicks: 'Clicks',
+      uniqueIPs: 'Unique IPs',
+      createTracker: 'New Tracker',
+      name: 'Name',
+      destination: 'Destination',
+      domain: 'Domain',
+      generate: 'Generate',
+      copy: 'Copy',
+      logs: 'Logs',
+      refresh: 'Refresh',
+      noLogs: 'No logs yet.',
+      export: 'Export',
+      manageTrackers: 'Manage Trackers',
+      noTrackers: 'No trackers yet.',
+      destination: 'Destination',
+      link: 'Link',
+      management: 'Management',
+      open: 'Open',
+      details: 'Log Details',
+      confirmLogout: 'Are you sure you want to logout?',
+      logoutError: 'Logout error.',
+      linkCopied: 'Link copied!',
+      destinationCopied: 'Destination copied!',
+      managementCopied: 'Management link copied!',
+      fillAllFields: 'Please fill all fields.',
+      generating: 'Generating...',
+      generatingError: 'Link generation failed.',
+      trackerCreated: 'Tracker created!',
+      loadingFailed: 'Loading failed.',
+      manage: 'Manage',
+      delete: 'Delete',
+      confirmDelete: 'Are you sure you want to delete this tracker?',
+      deleteError: 'Delete failed.',
+      trackerDeleted: 'Tracker deleted!'
+    }
+  };
+
+  let currentLang = localStorage.getItem('lang') || 'nl';
+
+  function setLanguage(lang) {
+    currentLang = lang;
+    localStorage.setItem('lang', lang);
+    document.getElementById('langBtn').textContent = lang === 'nl' ? '🌐 NL' : '🌐 EN';
+
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.getAttribute('data-i18n');
+      if (translations[lang][key]) {
+        el.textContent = translations[lang][key];
+      }
+    });
+  }
+
+  function t(key) {
+    return translations[currentLang][key] || key;
+  }
+
   let allLogs    = [];
   let currentMap = null;
 
@@ -467,6 +587,9 @@
 
   document.getElementById('logoutBtn').addEventListener('click', logout);
   document.getElementById('usersBtn').addEventListener('click', () => window.location.href = '/admin');
+  document.getElementById('langBtn').addEventListener('click', () => {
+    setLanguage(currentLang === 'nl' ? 'en' : 'nl');
+  });
   document.getElementById('generateBtn').addEventListener('click', generateLink);
   document.getElementById('copyBtn').addEventListener('click', copyLink);
   document.getElementById('refreshBtn').addEventListener('click', loadLogs);
@@ -968,6 +1091,7 @@ async function loadTrackersList() {
 
   // ── Initieel laden ─────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  setLanguage(currentLang);
   loadUserInfo();
   loadSummary();
   loadTrackersList();
