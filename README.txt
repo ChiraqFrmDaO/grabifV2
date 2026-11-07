@@ -15,6 +15,7 @@ Een professionele IP tracking applicatie met Node.js en SQLite.
    npm run hash-password
    ```
    Voer je wachtwoord in en kopieer de gegenereerde hash naar je `.env` bestand als `ADMIN_PASS_HASH`.
+   Admin- en registratie-wachtwoorden worden met bcrypt gehasht. Een plain-text `ADMIN_PASS` wordt niet meer geaccepteerd; verwijder deze instelling uit `.env`.
 5. Installeer dependencies:
    ```
    npm install
@@ -68,8 +69,7 @@ Voor PostgreSQL deploy:
 
 - `PORT`: Server poort (default: 3000)
 - `ADMIN_USER`: Gebruikersnaam voor dashboard
-- `ADMIN_PASS`: Wachtwoord voor dashboard (legacy, plain text)
-- `ADMIN_PASS_HASH`: Gehasht wachtwoord (aanbevolen voor productie)
+- `ADMIN_PASS_HASH`: Verplicht bcrypt-gehasht wachtwoord voor het admin-account (genereer met `npm run hash-password`)
 - `DB_PATH`: Pad naar SQLite database (default: ./database.sqlite)
 - `DATABASE_URL`: PostgreSQL connection string (optioneel, override SQLite)
 - `SESSION_SECRET`: Secret voor sessie encryptie (verplicht in productie)

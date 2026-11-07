@@ -273,7 +273,6 @@ app.use('/api', (req, res, next) => {
 
 // ── Admin credentials ─────────────────────────────────────────────────────────
 const ADMIN_USER = process.env.ADMIN_USER || 'admin';
-const ADMIN_PASS = process.env.ADMIN_PASS || 'change_me';
 const ADMIN_PASS_HASH = process.env.ADMIN_PASS_HASH;
 
 // Hash password if not already hashed
@@ -282,11 +281,6 @@ async function hashPassword(password) {
 }
 
 async function verifyPassword(password, hash) {
-  // If no hash is set (legacy), compare plain text and warn
-  if (!hash && ADMIN_PASS === password) {
-    console.warn('⚠️  WARNING: Using plain text password. Set ADMIN_PASS_HASH in .env for security.');
-    return true;
-  }
   if (!hash) return false;
   return await bcrypt.compare(password, hash);
 }
@@ -296,8 +290,12 @@ function generateInviteToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
-if (process.env.NODE_ENV === 'production' && (ADMIN_USER === 'admin' || ADMIN_PASS === 'change_me')) {
-  console.warn('⚠️  WARNING: Using default admin credentials in production!');
+if (!ADMIN_PASS_HASH) {
+  console.warn('⚠️  WARNING: ADMIN_PASS_HASH is not set. Admin password login is disabled.');
+}
+
+if (process.env.NODE_ENV === 'production' && (ADMIN_USER === 'admin' || !ADMIN_PASS_HASH)) {
+  console.warn('⚠️  WARNING: Configure a non-default admin username and ADMIN_PASS_HASH in production.');
 }
 
 // ── Rate limiting ─────────────────────────────────────────────────────────────
@@ -1399,10 +1397,10 @@ app.post('/api/invites', requireAdmin, async (req, res) => {
     if (useDb) {
       if (usePostgres) {
         await pool.query(`INSERT INTO users (username, email, password_hash, role, invite_token) VALUES ($1, $2, $3, $4, $5)`, 
-          ['pending', inviteToken, '', 'user', inviteToken]);
+          [`pending_${inviteToken}`, inviteToken, '', 'user', inviteToken]);
       } else {
         const stmt = db.prepare(`INSERT INTO users (username, email, password_hash, role, invite_token) VALUES (?, ?, ?, ?, ?)`);
-        stmt.run('pending', inviteToken, '', 'user', inviteToken);
+        stmt.run(`pending_${inviteToken}`, inviteToken, '', 'user', inviteToken);
       }
     }
     
@@ -1420,10 +1418,10 @@ app.get('/api/invites', requireAdmin, async (req, res) => {
     let invites = [];
     if (useDb) {
       if (usePostgres) {
-        const { rows } = await pool.query(`SELECT invite_token, created_at FROM users WHERE username = 'pending'`);
+        const { rows } = await pool.query(`SELECT invite_token, created_at FROM users WHERE invite_token IS NOT NULL`);
         invites = rows;
       } else {
-        const stmt = db.prepare(`SELECT invite_token, created_at FROM users WHERE username = 'pending'`);
+        const stmt = db.prepare(`SELECT invite_token, created_at FROM users WHERE invite_token IS NOT NULL`);
         invites = stmt.all();
       }
     }
@@ -1487,10 +1485,10 @@ app.post('/api/register', async (req, res) => {
     let validInvite = false;
     if (useDb) {
       if (usePostgres) {
-        const { rows } = await pool.query(`SELECT * FROM users WHERE invite_token = $1 AND username = 'pending'`, [inviteToken]);
+        const { rows } = await pool.query(`SELECT * FROM users WHERE invite_token = $1`, [inviteToken]);
         validInvite = rows.length > 0;
       } else {
-        const stmt = db.prepare(`SELECT * FROM users WHERE invite_token = ? AND username = 'pending'`);
+        const stmt = db.prepare(`SELECT * FROM users WHERE invite_token = ?`);
         validInvite = stmt.get(inviteToken);
       }
     }

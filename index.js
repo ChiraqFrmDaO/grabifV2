@@ -412,9 +412,6 @@ app.use(session({
 const ADMIN_USER =
     process.env.ADMIN_USER || 'admin';
 
-const ADMIN_PASS =
-    process.env.ADMIN_PASS || 'change_me';
-
 const ADMIN_PASS_HASH = process.env.ADMIN_PASS_HASH;
 
 async function hashPassword(password) {
@@ -422,10 +419,6 @@ async function hashPassword(password) {
 }
 
 async function verifyPassword(password, hash) {
-  if (!hash && ADMIN_PASS === password) {
-    console.warn('⚠️  WARNING: Using plain text password. Set ADMIN_PASS_HASH in .env for security.');
-    return true;
-  }
   if (!hash) return false;
   return await bcrypt.compare(password, hash);
 }
