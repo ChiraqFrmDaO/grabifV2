@@ -741,6 +741,7 @@ async function initDatabase() {
           role TEXT NOT NULL DEFAULT 'user',
           invite_token TEXT UNIQUE,
           api_token TEXT UNIQUE,
+          api_access BOOLEAN DEFAULT false,
           created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         );
       `);
@@ -748,6 +749,11 @@ async function initDatabase() {
       // Add api_token column if it doesn't exist
       try {
         await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS api_token TEXT UNIQUE;`);
+      } catch (err) {}
+
+      // Add api_access column if it doesn't exist
+      try {
+        await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS api_access BOOLEAN DEFAULT false;`);
       } catch (err) {}
 
       // Create logs table
@@ -876,6 +882,7 @@ async function initDatabase() {
           role TEXT NOT NULL DEFAULT 'user',
           invite_token TEXT UNIQUE,
           api_token TEXT UNIQUE,
+          api_access INTEGER DEFAULT 0,
           created_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
       `);
@@ -883,6 +890,11 @@ async function initDatabase() {
       // Add api_token column if it doesn't exist
       try {
         db.exec(`ALTER TABLE users ADD COLUMN api_token TEXT UNIQUE;`);
+      } catch (err) {}
+
+      // Add api_access column if it doesn't exist
+      try {
+        db.exec(`ALTER TABLE users ADD COLUMN api_access INTEGER DEFAULT 0;`);
       } catch (err) {}
 
       // Create logs table
@@ -1592,14 +1604,17 @@ app.post('/api/logout', (req, res) => {
 
 app.get('/api/user', requireAuth, async (req, res) => {
   let apiToken = null;
+  let apiAccess = false;
   if (useDb && req.session.user) {
     if (usePostgres) {
-      const { rows } = await pool.query('SELECT api_token FROM users WHERE username = $1', [req.session.user]);
+      const { rows } = await pool.query('SELECT api_token, api_access FROM users WHERE username = $1', [req.session.user]);
       apiToken = rows[0]?.api_token;
+      apiAccess = rows[0]?.api_access || false;
     } else {
-      const stmt = db.prepare('SELECT api_token FROM users WHERE username = ?');
+      const stmt = db.prepare('SELECT api_token, api_access FROM users WHERE username = ?');
       const user = stmt.get(req.session.user);
       apiToken = user?.api_token;
+      apiAccess = user?.api_access || false;
     }
   }
 
@@ -1607,7 +1622,8 @@ app.get('/api/user', requireAuth, async (req, res) => {
     authenticated: req.session.authenticated,
     user: req.session.user,
     role: req.session.role,
-    api_token: apiToken
+    api_token: apiToken,
+    api_access: apiAccess
   });
 });
 
@@ -1949,10 +1965,10 @@ app.get('/api/users', requireAdmin, async (req, res) => {
     let users = [];
     if (useDb) {
       if (usePostgres) {
-        const { rows } = await pool.query(`SELECT username, email, role, created_at FROM users WHERE username != 'pending'`);
+        const { rows } = await pool.query(`SELECT username, email, role, api_access, created_at FROM users WHERE username != 'pending'`);
         users = rows;
       } else {
-        const stmt = db.prepare(`SELECT username, email, role, created_at FROM users WHERE username != 'pending'`);
+        const stmt = db.prepare(`SELECT username, email, role, api_access, created_at FROM users WHERE username != 'pending'`);
         users = stmt.all();
       }
     }
@@ -1984,6 +2000,30 @@ app.post('/api/users/role', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Change role error:', error);
     res.status(500).json({ error: 'Failed to change role' });
+  }
+});
+
+// Toggle user API access
+app.post('/api/users/api-access', requireAdmin, async (req, res) => {
+  const { username, api_access } = req.body;
+
+  if (!username || typeof api_access !== 'boolean') {
+    return res.status(400).json({ error: 'Invalid request' });
+  }
+
+  try {
+    if (useDb) {
+      if (usePostgres) {
+        await pool.query(`UPDATE users SET api_access = $1 WHERE username = $2`, [api_access, username]);
+      } else {
+        const stmt = db.prepare(`UPDATE users SET api_access = ? WHERE username = ?`);
+        stmt.run(api_access ? 1 : 0, username);
+      }
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Change API access error:', error);
+    res.status(500).json({ error: 'Failed to change API access' });
   }
 });
 

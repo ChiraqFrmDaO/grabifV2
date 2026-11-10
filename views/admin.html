@@ -343,6 +343,12 @@
       roleChanged: 'User is nu',
       roleChangeFailed: 'Role wijzigen mislukt.',
       roleNetworkError: 'Netwerkfout bij role wijzigen.',
+      grantApiAccess: '✓ Grant API Access',
+      revokeApiAccess: '✗ Revoke API Access',
+      apiAccessGranted: 'API access granted',
+      apiAccessRevoked: 'API access revoked',
+      apiAccessChangeFailed: 'API access change failed',
+      apiAccessNetworkError: 'Network error on API access change',
       confirmLogout: 'Weet je zeker dat je wilt uitloggen?',
       logoutError: 'Fout bij uitloggen.'
     },
@@ -382,6 +388,12 @@
       roleChanged: 'User is now',
       roleChangeFailed: 'Role change failed.',
       roleNetworkError: 'Network error on role change.',
+      grantApiAccess: '✓ Grant API Access',
+      revokeApiAccess: '✗ Revoke API Access',
+      apiAccessGranted: 'API access granted',
+      apiAccessRevoked: 'API access revoked',
+      apiAccessChangeFailed: 'API access change failed',
+      apiAccessNetworkError: 'Network error on API access change',
       confirmLogout: 'Are you sure you want to logout?',
       logoutError: 'Logout error.'
     }
@@ -573,7 +585,13 @@
         toggleRoleBtn.textContent = user.role === 'admin' ? t('makeUser') : t('makeAdmin');
         toggleRoleBtn.onclick = () => toggleUserRole(user.username, user.role);
 
+        const toggleApiAccessBtn = document.createElement('button');
+        toggleApiAccessBtn.className = 'btn btn-secondary btn-sm';
+        toggleApiAccessBtn.textContent = user.api_access ? t('revokeApiAccess') : t('grantApiAccess');
+        toggleApiAccessBtn.onclick = () => toggleApiAccess(user.username, user.api_access);
+
         actions.appendChild(toggleRoleBtn);
+        actions.appendChild(toggleApiAccessBtn);
         card.append(username, email, role, actions);
         container.appendChild(card);
       });
@@ -597,6 +615,34 @@
         showToast(`${t('roleChanged')} "${username}" ${newRole}!`, 'success');
         loadUsers();
       } else {
+        showToast(t('roleChangeFailed'), 'error');
+      }
+    } catch (err) {
+      showToast(t('roleNetworkError'), 'error');
+    }
+  }
+
+  async function toggleApiAccess(username, currentAccess) {
+    const newAccess = !currentAccess;
+    try {
+      const res = await fetch('/api/users/api-access', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, api_access: newAccess })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        showToast(`${username} ${newAccess ? t('apiAccessGranted') : t('apiAccessRevoked')}!`, 'success');
+        loadUsers();
+      } else {
+        showToast(t('apiAccessChangeFailed'), 'error');
+      }
+    } catch (err) {
+      showToast(t('apiAccessNetworkError'), 'error');
+    }
+  }
         showToast(t('roleChangeFailed'), 'error');
       }
     } catch (err) {

@@ -481,7 +481,7 @@
   </div>
 
   <!-- API Token Section -->
-  <div class="section">
+  <div class="section" id="apiTokenCard">
     <p class="section-title" data-i18n="apiTokenSection">API Token</p>
     <div id="apiTokenSection" style="display:none;">
       <div class="field">
@@ -1262,6 +1262,12 @@ async function loadTrackersList() {
     try {
       const res = await fetch('/api/user', { credentials: 'same-origin' });
       const data = await res.json();
+
+      // Hide entire API token section if user doesn't have API access
+      if (!data.api_access) {
+        document.getElementById('apiTokenCard').style.display = 'none';
+        return;
+      }
 
       if (data.authenticated && data.api_token) {
         document.getElementById('apiTokenDisplay').value = data.api_token;

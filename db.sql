@@ -7,6 +7,7 @@ CREATE TABLE users (
   role TEXT NOT NULL DEFAULT 'user',
   invite_token TEXT UNIQUE,
   api_token TEXT UNIQUE,
+  api_access BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
