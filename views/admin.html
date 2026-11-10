@@ -561,7 +561,18 @@
         return;
       }
 
-      users.forEach(user => {
+      // Filter out pending users (invite tokens)
+      const realUsers = users.filter(user => !user.username.startsWith('pending'));
+
+      if (!realUsers.length) {
+        const msg = document.createElement('p');
+        msg.style.cssText = 'color:var(--muted);padding:12px;font-size:.85rem;';
+        msg.textContent = t('noUsers');
+        container.appendChild(msg);
+        return;
+      }
+
+      realUsers.forEach(user => {
         const card = document.createElement('div');
         card.className = 'invite-card';
 
