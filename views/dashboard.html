@@ -97,12 +97,13 @@
     .lang-selector {
       background: rgba(255,255,255,.05);
       border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 4px 8px;
-      font-size: 0.75rem;
+      border-radius: 10px;
+      padding: 8px 14px;
+      font-size: 0.85rem;
       cursor: pointer;
       color: var(--muted);
       transition: all 0.2s;
+      white-space: nowrap;
     }
     .lang-selector:hover {
       color: var(--text);
@@ -361,70 +362,70 @@
 
     <!-- Nieuwe tracker -->
     <div class="section">
-      <p class="section-title">Nieuwe trackinglink</p>
+      <p class="section-title" data-i18n="newTrackingLink">Nieuwe trackinglink</p>
 
       <div class="field">
-        <label for="name">Naam</label>
+        <label for="name" data-i18n="name">Naam</label>
         <input type="text" id="name" placeholder="bijv. Instagram campagne">
       </div>
       <div class="field">
-        <label for="destination">Doel-URL (https://)</label>
+        <label for="destination" data-i18n="destination">Doel-URL (https://)</label>
         <input type="text" id="destination" value="https://" placeholder="https://voorbeeld.nl">
       </div>
 
       <!-- Advanced Options Toggle -->
       <div class="field">
-        <button type="button" id="toggleAdvanced" class="btn btn-secondary btn-sm" style="width:100%;">
+        <button type="button" id="toggleAdvanced" class="btn btn-secondary btn-sm" style="width:100%; border-style:dashed;" data-i18n="advancedOptions">
           ⚙️ Geavanceerde opties
         </button>
       </div>
 
-      <div id="advancedOptions" style="display:none;">
+      <div id="advancedOptions" style="display:none; margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
         <div class="field">
-          <label for="discordWebhook">Discord Webhook URL</label>
+          <label for="discordWebhook" data-i18n="webhookUrl">Discord Webhook URL</label>
           <input type="text" id="discordWebhook" placeholder="https://discord.com/api/webhooks/...">
         </div>
         <div class="field">
-          <label for="telegramWebhook">Telegram Bot URL</label>
+          <label for="telegramWebhook" data-i18n="webhookUrl">Telegram Bot URL</label>
           <input type="text" id="telegramWebhook" placeholder="https://api.telegram.org/bot.../sendMessage">
         </div>
         <div class="field">
-          <label for="customWebhook">Custom Webhook URL</label>
+          <label for="customWebhook" data-i18n="webhookUrl">Custom Webhook URL</label>
           <input type="text" id="customWebhook" placeholder="https://yourserver.com/webhook">
         </div>
         <div class="field">
-          <label for="alternativeDomain">Alternatief domein (voor masking)</label>
+          <label for="alternativeDomain" data-i18n="altDomain">Alternatief domein (voor masking)</label>
           <input type="text" id="alternativeDomain" placeholder="https://alternative-domain.com">
         </div>
         <div class="field">
-          <label for="customLandingPage">Custom landing page URL</label>
+          <label for="customLandingPage" data-i18n="customLanding">Custom landing page URL</label>
           <input type="text" id="customLandingPage" placeholder="https://yourpage.com/custom">
         </div>
         <div class="field">
-          <label>Bot Filtering</label>
-          <div style="display:flex; gap:12px; flex-wrap:wrap;">
-            <label style="display:flex; align-items:center; gap:6px; margin:0;">
-              <input type="checkbox" id="filterBots" checked> Bots
+          <label data-i18n="botFiltering">Bot Filtering</label>
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:8px; margin-top:8px;">
+            <label style="display:flex; align-items:center; gap:8px; margin:0; font-size:0.85rem; color:var(--text);">
+              <input type="checkbox" id="filterBots" checked style="margin:0;"> Bots
             </label>
-            <label style="display:flex; align-items:center; gap:6px; margin:0;">
-              <input type="checkbox" id="filterSearchEngines" checked> Search Engines
+            <label style="display:flex; align-items:center; gap:8px; margin:0; font-size:0.85rem; color:var(--text);">
+              <input type="checkbox" id="filterSearchEngines" checked style="margin:0;"> Search Engines
             </label>
-            <label style="display:flex; align-items:center; gap:6px; margin:0;">
-              <input type="checkbox" id="filterSocialMedia" checked> Social Media
+            <label style="display:flex; align-items:center; gap:8px; margin:0; font-size:0.85rem; color:var(--text);">
+              <input type="checkbox" id="filterSocialMedia" checked style="margin:0;"> Social Media
             </label>
           </div>
         </div>
       </div>
 
-      <button class="btn btn-primary" id="generateBtn">
+      <button class="btn btn-primary" id="generateBtn" data-i18n="linkCreate">
         ＋ Link aanmaken
       </button>
 
       <div id="result">
-        <div><strong>Trackinglink:</strong></div>
+        <div><strong data-i18n="trackingLink">Trackinglink:</strong></div>
         <div class="copy-row">
           <input type="text" id="generatedLink" readonly>
-          <button id="copyBtn" class="btn btn-secondary btn-sm">Kopieer</button>
+          <button id="copyBtn" class="btn btn-secondary btn-sm" data-i18n="copy">Kopieer</button>
           <span id="copyFeedback">✓ Gekopieerd</span>
         </div>
       </div>
@@ -434,7 +435,7 @@
   <!-- Actieve trackers -->
   <div class="section">
     <div class="table-header">
-      <p class="section-title" style="margin:0;">Actieve trackers</p>
+      <p class="section-title" style="margin:0;" data-i18n="activeTrackers">Actieve trackers</p>
     </div>
     <div id="trackersList" class="trackers-grid">
       <div class="skeleton" style="height:90px;"></div>
@@ -445,16 +446,16 @@
   <!-- Logs tabel -->
   <div class="section">
     <div class="table-header">
-      <p class="section-title" style="margin:0;">Laatste logs</p>
-      <button id="refreshBtn" class="btn btn-secondary btn-sm">↻ Ververs</button>
+      <p class="section-title" style="margin:0;" data-i18n="latestLogs">Laatste logs</p>
+      <button id="refreshBtn" class="btn btn-secondary btn-sm" data-i18n="refresh">↻ Ververs</button>
     </div>
     <div class="table-wrapper">
       <table id="logsTable">
         <thead>
           <tr>
-            <th>Naam</th><th>Tijd</th><th>Tracker ID</th>
+            <th data-i18n="name">Naam</th><th>Tijd</th><th>Tracker ID</th>
             <th>IP</th><th>Land</th><th>Stad</th>
-            <th>Browser / OS</th><th>Security</th><th>Actie</th>
+            <th>Browser / OS</th><th data-i18n="securityFlags">Security</th><th data-i18n="detailsLabel">Actie</th>
           </tr>
         </thead>
         <tbody id="logsBody">
@@ -506,7 +507,6 @@
       export: 'Exporteer',
       manageTrackers: 'Trackers Beheren',
       noTrackers: 'Nog geen trackers.',
-      destination: 'Bestemming',
       link: 'Link',
       management: 'Management',
       open: 'Open',
@@ -525,7 +525,30 @@
       delete: 'Verwijderen',
       confirmDelete: 'Weet je zeker dat je deze tracker wilt verwijderen?',
       deleteError: 'Verwijderen mislukt.',
-      trackerDeleted: 'Tracker verwijderd!'
+      trackerDeleted: 'Tracker verwijderd!',
+      advancedOptions: '⚙️ Geavanceerde opties',
+      newTrackingLink: 'Nieuwe trackinglink',
+      webhookUrl: 'Webhook URL',
+      altDomain: 'Alternatief domein (voor masking)',
+      customLanding: 'Custom landing page URL',
+      botFiltering: 'Bot Filtering',
+      linkCreate: '＋ Link aanmaken',
+      trackingLink: 'Trackinglink:',
+      activeTrackers: 'Actieve trackers',
+      latestLogs: 'Laatste logs',
+      noTrackersFound: 'Geen actieve trackers gevonden.',
+      destinationLabel: 'Bestemming:',
+      idLabel: 'ID:',
+      managementLabel: 'Management:',
+      logsLabel: 'Logs',
+      detailsLabel: '📍 Details',
+      deleteLabel: '✕ Verwijderen',
+      botDetected: '🤖 Bot',
+      securityFlags: 'Security',
+      vpnDetected: '🔒 VPN',
+      proxyDetected: '🛡️ Proxy',
+      torDetected: '🧅 Tor',
+      dcDetected: '🏢 DC'
     },
     en: {
       dashboardSubtitle: 'IP Tracking Dashboard',
@@ -547,7 +570,6 @@
       export: 'Export',
       manageTrackers: 'Manage Trackers',
       noTrackers: 'No trackers yet.',
-      destination: 'Destination',
       link: 'Link',
       management: 'Management',
       open: 'Open',
@@ -566,7 +588,30 @@
       delete: 'Delete',
       confirmDelete: 'Are you sure you want to delete this tracker?',
       deleteError: 'Delete failed.',
-      trackerDeleted: 'Tracker deleted!'
+      trackerDeleted: 'Tracker deleted!',
+      advancedOptions: '⚙️ Advanced Options',
+      newTrackingLink: 'New Tracking Link',
+      webhookUrl: 'Webhook URL',
+      altDomain: 'Alternative Domain (for masking)',
+      customLanding: 'Custom Landing Page URL',
+      botFiltering: 'Bot Filtering',
+      linkCreate: '＋ Create Link',
+      trackingLink: 'Tracking Link:',
+      activeTrackers: 'Active Trackers',
+      latestLogs: 'Latest Logs',
+      noTrackersFound: 'No active trackers found.',
+      destinationLabel: 'Destination:',
+      idLabel: 'ID:',
+      managementLabel: 'Management:',
+      logsLabel: 'Logs',
+      detailsLabel: '📍 Details',
+      deleteLabel: '✕ Delete',
+      botDetected: '🤖 Bot',
+      securityFlags: 'Security',
+      vpnDetected: '🔒 VPN',
+      proxyDetected: '🛡️ Proxy',
+      torDetected: '🧅 Tor',
+      dcDetected: '🏢 DC'
     }
   };
 
@@ -577,12 +622,17 @@
     localStorage.setItem('lang', lang);
     document.getElementById('langBtn').textContent = lang === 'nl' ? '🌐 NL' : '🌐 EN';
 
+    // Update all static elements with data-i18n
     document.querySelectorAll('[data-i18n]').forEach(el => {
       const key = el.getAttribute('data-i18n');
       if (translations[lang][key]) {
         el.textContent = translations[lang][key];
       }
     });
+
+    // Re-render dynamic content
+    loadTrackersList();
+    loadLogs();
   }
 
   function t(key) {
