@@ -241,6 +241,7 @@
     <div class="tabs">
       <button class="tab-btn active" data-tab="users" data-i18n="usersTab">Users</button>
       <button class="tab-btn" data-tab="invites" data-i18n="invitesTab">Invites</button>
+      <button class="tab-btn" data-tab="api" data-i18n="apiTab">API Token</button>
     </div>
 
     <div id="usersTab" class="tab-content active">
@@ -261,6 +262,25 @@
         <div class="skeleton" style="height:60px;"></div>
       </div>
     </div>
+
+    <div id="apiTab" class="tab-content">
+      <div class="table-header">
+        <p class="section-title" style="margin:0;" data-i18n="apiTitle">API Token</p>
+        <button id="generateApiTokenBtn" class="btn btn-primary" data-i18n="newApiToken">+ Generate New Token</button>
+      </div>
+      <div id="apiTokenSection" style="display:none;">
+        <div class="field">
+          <label data-i18n="currentApiToken">Current API Token:</label>
+          <input type="text" id="apiTokenDisplay" readonly style="font-family:monospace;">
+        </div>
+        <div style="margin-top:12px;">
+          <button id="copyApiTokenBtn" class="btn btn-secondary btn-sm" data-i18n="copyToken">📋 Copy Token</button>
+        </div>
+      </div>
+      <div id="noApiToken" style="color:var(--muted);padding:12px;font-size:.85rem;" data-i18n="noApiToken">
+        No API token generated yet.
+      </div>
+    </div>
   </div>
 
 </div>
@@ -279,9 +299,12 @@
       logoutBtn: '↪ Uitloggen',
       usersTab: 'Users',
       invitesTab: 'Invites',
+      apiTab: 'API Token',
       usersTitle: 'Users',
       invitesTitle: 'Invites',
+      apiTitle: 'API Token',
       newInvite: '+ Nieuwe Invite',
+      newApiToken: '+ Generate New Token',
       user: 'User',
       email: 'Email',
       role: 'Role',
@@ -290,12 +313,18 @@
       token: 'Token',
       created: 'Aangemaakt',
       copyInvite: '📋 Kopieer',
+      copyToken: '📋 Copy Token',
+      currentApiToken: 'Current API Token:',
       inviteLink: 'Invite link gekopieerd!',
       inviteFailed: 'Invite genereren mislukt.',
       inviteNetworkError: 'Netwerkfout bij invite.',
       inviteSuccess: 'Invite link gekopieerd!',
       noUsers: 'Geen users gevonden.',
       noInvites: 'Geen actieve invites.',
+      noApiToken: 'No API token generated yet.',
+      apiTokenGenerated: 'API token generated!',
+      apiTokenFailed: 'API token generation failed.',
+      apiTokenCopied: 'API token copied!',
       roleChanged: 'User is nu',
       roleChangeFailed: 'Role wijzigen mislukt.',
       roleNetworkError: 'Netwerkfout bij role wijzigen.',
@@ -309,9 +338,12 @@
       logoutBtn: '↪ Logout',
       usersTab: 'Users',
       invitesTab: 'Invites',
+      apiTab: 'API Token',
       usersTitle: 'Users',
       invitesTitle: 'Invites',
+      apiTitle: 'API Token',
       newInvite: '+ New Invite',
+      newApiToken: '+ Generate New Token',
       user: 'User',
       email: 'Email',
       role: 'Role',
@@ -320,12 +352,18 @@
       token: 'Token',
       created: 'Created',
       copyInvite: '📋 Copy',
+      copyToken: '📋 Copy Token',
+      currentApiToken: 'Current API Token:',
       inviteLink: 'Invite link copied!',
       inviteFailed: 'Invite generation failed.',
       inviteNetworkError: 'Network error on invite.',
       inviteSuccess: 'Invite link copied!',
       noUsers: 'No users found.',
       noInvites: 'No active invites.',
+      noApiToken: 'No API token generated yet.',
+      apiTokenGenerated: 'API token generated!',
+      apiTokenFailed: 'API token generation failed.',
+      apiTokenCopied: 'API token copied!',
       roleChanged: 'User is now',
       roleChangeFailed: 'Role change failed.',
       roleNetworkError: 'Network error on role change.',
@@ -404,6 +442,8 @@
   }
 
   document.getElementById('generateInviteBtn').addEventListener('click', generateInvite);
+  document.getElementById('generateApiTokenBtn').addEventListener('click', generateApiToken);
+  document.getElementById('copyApiTokenBtn').addEventListener('click', copyApiToken);
 
   async function generateInvite() {
     try {
@@ -549,6 +589,54 @@
     }
   }
 
+  async function generateApiToken() {
+    try {
+      const res = await fetch('/api/api-token', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        document.getElementById('apiTokenDisplay').value = data.api_token;
+        document.getElementById('apiTokenSection').style.display = '';
+        document.getElementById('noApiToken').style.display = 'none';
+        showToast(t('apiTokenGenerated'), 'success');
+      } else {
+        showToast(t('apiTokenFailed'), 'error');
+      }
+    } catch (err) {
+      showToast(t('apiTokenFailed'), 'error');
+    }
+  }
+
+  async function copyApiToken() {
+    const token = document.getElementById('apiTokenDisplay').value;
+    if (token) {
+      navigator.clipboard.writeText(token);
+      showToast(t('apiTokenCopied'), 'success');
+    }
+  }
+
+  async function loadApiToken() {
+    try {
+      const res = await fetch('/api/user', { credentials: 'same-origin' });
+      const data = await res.json();
+
+      if (data.authenticated && data.api_token) {
+        document.getElementById('apiTokenDisplay').value = data.api_token;
+        document.getElementById('apiTokenSection').style.display = '';
+        document.getElementById('noApiToken').style.display = 'none';
+      } else {
+        document.getElementById('noApiToken').style.display = '';
+        document.getElementById('apiTokenSection').style.display = 'none';
+      }
+    } catch (err) {
+      console.error('Failed to load API token status:', err);
+    }
+  }
+
   // Tab switching
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -569,6 +657,7 @@
     loadUserInfo();
     loadUsers();
     loadInvites();
+    loadApiToken();
   });
 </script>
 </body>

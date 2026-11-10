@@ -1,6 +1,7 @@
-# IP Logger
+# IP Logger - Grabify Clone
 
-Een professionele IP tracking applicatie met Node.js en SQLite.
+Een professionele IP tracking applicatie met Node.js en SQLite/PostgreSQL.
+Een volledige Grabify IP Logger clone met geavanceerde features.
 
 ## Installatie
 
@@ -15,7 +16,6 @@ Een professionele IP tracking applicatie met Node.js en SQLite.
    npm run hash-password
    ```
    Voer je wachtwoord in en kopieer de gegenereerde hash naar je `.env` bestand als `ADMIN_PASS_HASH`.
-   Admin- en registratie-wachtwoorden worden met bcrypt gehasht. Een plain-text `ADMIN_PASS` wordt niet meer geaccepteerd; verwijder deze instelling uit `.env`.
 5. Installeer dependencies:
    ```
    npm install
@@ -45,18 +45,35 @@ Voor PostgreSQL deploy:
 1. Ga naar `http://localhost:3000/admin`
 2. Log in met de credentials uit je `.env` bestand
 3. Maak tracking links aan met een naam en doel URL
-4. Deel de tracking link en bekijk de logs in het dashboard
+4. Configureer webhooks, bot filtering, en alternatieve domeinen
+5. Deel de tracking link en bekijk de logs in het dashboard
 
 ## Features
 
+### Core Features
 - 🎯 Maak tracking links aan met custom bestemmingen
 - 📊 Bekijk IP adres, locatie, browser en OS van bezoekers
 - 🗺️ Geolocatie met kaartweergave
 - 🔐 Session-based authenticatie met bcrypt password hashing
+- 👥 Multi-tenancy: gebruikers zien alleen hun eigen trackers
 - 🛡️ Verbeterde security: HSTS, CSRF protection, strict CORS
 - ⚡ Rate limiting op alle API endpoints
 - 💾 SQLite database (geen externe database server nodig)
 - 🚀 Query caching voor betere performance
+
+### Advanced Features (Grabify-like)
+- 🔔 Webhook integraties: Discord, Telegram, Custom webhooks
+- 🤖 Geavanceerde bot filtering: bots, search engines, social media crawlers
+- 🌐 Alternatieve domein masking voor URL filtering bypass
+- 📡 Real-time notificaties bij klikken via webhooks
+- 🔍 ASN (Autonomous System Number) lookup
+- 🛡️ VPN/Proxy/Tor/Datacenter detectie
+- 📱 Screen resolution en color depth capture
+- 🎨 Custom landing page configuratie
+- 🔑 API endpoints voor programmatic link generation
+- 🎫 API token authenticatie voor externe applicaties
+
+### Security & Performance
 - 📈 Health check endpoint
 - 🚀 Graceful shutdown
 - 📝 Request logging en tracking
@@ -74,25 +91,75 @@ Voor PostgreSQL deploy:
 - `DATABASE_URL`: PostgreSQL connection string (optioneel, override SQLite)
 - `SESSION_SECRET`: Secret voor sessie encryptie (verplicht in productie)
 - `ALLOWED_ORIGINS`: CORS toegestane origins (strict in productie)
+- `DEFAULT_REDIRECT_URL`: Default redirect URL voor invalid trackers (default: https://youtube.com)
 - `NODE_ENV`: Environment (development/production)
 
 ## API Endpoints
 
+### Public Endpoints
 - `GET /` - Homepagina
 - `GET /health` - Health check
+- `GET /:trackerId` - Tracker redirect
+- `GET /track/:id` - Tracker redirect
+- `GET /pixel/:trackerId.png` - Tracking pixel
+- `POST /api/log-geo` - Client-side geo logging
+
+### Authentication
 - `GET /login` - Login pagina
 - `POST /api/login` - Login endpoint
 - `POST /api/logout` - Logout endpoint
-- `GET /admin` - Admin dashboard (vereist authenticatie)
-- `GET /api/trackers` - Lijst van trackers (vereist authenticatie)
+- `GET /register` - Registratie pagina (met invite token)
+- `POST /api/register` - Registratie endpoint
+
+### Dashboard & Admin
+- `GET /admin` - Admin dashboard (vereist admin role)
+- `GET /dashboard` - User dashboard (vereist authenticatie)
+- `GET /api/user` - Huidige gebruiker info
+- `GET /api/trackers` - Lijst van trackers (vereist authenticatie, user-isolated)
 - `POST /api/save-tracker` - Maak of update tracker (vereist authenticatie)
 - `POST /api/delete-tracker` - Verwijder tracker (vereist authenticatie)
 - `GET /api/logs?limit=500&offset=0` - Lijst van logs met paginering (vereist authenticatie)
 - `GET /api/summary` - Statistieken (vereist authenticatie)
-- `POST /api/log-geo` - Client-side geo logging
-- `GET /:trackerId` - Tracker redirect
-- `GET /track/:id` - Tracker redirect
-- `GET /pixel/:trackerId.png` - Tracking pixel
+
+### Admin Management
+- `GET /api/users` - Lijst van gebruikers (admin only)
+- `POST /api/users/role` - Wijzig user role (admin only)
+- `GET /api/invites` - Lijst van invite tokens (admin only)
+- `POST /api/invites` - Genereer nieuwe invite (admin only)
+- `POST /api/api-token` - Genereer API token (admin only)
+
+### API v1 (Programmatic Access)
+- `POST /api/v1/create-tracker` - Maak tracker via API token
+- `GET /api/v1/logs/:tracker_id` - Haal logs voor tracker via API token
+
+API Authentication header: `Authorization: Bearer YOUR_API_TOKEN`
+
+## Bot Filtering
+
+Systeem detecteert en filtert automatisch:
+- Bots: Googlebot, Bingbot, crawlers, scrapers
+- Search Engines: Google, Bing, Baidu, etc.
+- Social Media: Facebook, Twitter, Instagram, LinkedIn preview bots
+- Custom filtering per tracker instelbaar
+
+## Webhook Integration
+
+### Discord Webhook
+Formateer Discord embed notificaties met:
+- IP adres, locatie, browser/OS
+- Klik timestamp
+- Tracker naam
+
+### Telegram Webhook
+Markdown-formatted berichten met:
+- Volledige visitor data
+- Emoji icons voor duidelijkheid
+
+### Custom Webhook
+JSON payload met:
+- Tracker info
+- Complete log data
+- Voor custom integraties
 
 ## Beveiliging
 
@@ -106,3 +173,5 @@ Voor PostgreSQL deploy:
 - Content Security Policy via Helmet
 - Strict CORS policy in productie
 - Cache invalidatie bij data wijzigingen
+- User-isolated data (multi-tenancy)
+- API token authenticatie voor externe toegang

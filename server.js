@@ -66,7 +66,15 @@ class NotFoundError extends AppError {
 const trackerSchema = Joi.object({
   tracker_id: Joi.string().alphanum().min(1).max(32).optional(),
   name: Joi.string().min(1).max(100).required(),
-  destination_url: Joi.string().uri({ scheme: ['https'] }).required()
+  destination_url: Joi.string().uri({ scheme: ['https'] }).required(),
+  discord_webhook: Joi.string().uri().optional(),
+  telegram_webhook: Joi.string().uri().optional(),
+  custom_webhook: Joi.string().uri().optional(),
+  filter_bots: Joi.boolean().optional(),
+  filter_search_engines: Joi.boolean().optional(),
+  filter_social_media: Joi.boolean().optional(),
+  alternative_domain: Joi.string().optional(),
+  custom_landing_page: Joi.string().uri().optional()
 }).options({
   allowUnknown: false,
   stripUnknown: true
@@ -85,9 +93,14 @@ const geoLogSchema = Joi.object({
   ip: Joi.string().ip().optional(),
   country: Joi.string().optional(),
   city: Joi.string().optional(),
+  region: Joi.string().optional(),
+  zip_code: Joi.string().optional(),
   isp: Joi.string().optional(),
+  asn: Joi.string().optional(),
   lat: Joi.number().min(-90).max(90).optional(),
-  lon: Joi.number().min(-180).max(180).optional()
+  lon: Joi.number().min(-180).max(180).optional(),
+  screen_resolution: Joi.string().optional(),
+  color_depth: Joi.string().optional()
 }).options({
   allowUnknown: false,
   stripUnknown: true
@@ -542,6 +555,121 @@ function generateTrackerId() {
   return crypto.randomBytes(4).toString('hex');
 }
 
+/** Genereert een API token voor de gebruiker. */
+function generateApiToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+/** Verstuurt webhook notificatie naar Discord, Telegram of custom webhook. */
+async function sendWebhookNotification(tracker, log) {
+  const notifications = [];
+
+  // Discord webhook
+  if (tracker.discord_webhook) {
+    try {
+      const payload = {
+        embeds: [{
+          title: `🔔 New Click: ${tracker.name}`,
+          color: 0x00ff88,
+          fields: [
+            { name: 'IP', value: log.ip || 'Unknown', inline: true },
+            { name: 'Country', value: log.country || 'Unknown', inline: true },
+            { name: 'City', value: log.city || 'Unknown', inline: true },
+            { name: 'Browser', value: log.browser || 'Unknown', inline: true },
+            { name: 'OS', value: log.os || 'Unknown', inline: true },
+            { name: 'Time', value: new Date(log.timestamp).toLocaleString(), inline: true }
+          ],
+          timestamp: log.timestamp
+        }]
+      };
+
+      await fetch(tracker.discord_webhook, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      notifications.push('Discord');
+    } catch (err) {
+      console.error('Discord webhook failed:', err.message);
+    }
+  }
+
+  // Telegram webhook
+  if (tracker.telegram_webhook) {
+    try {
+      const message = `🔔 *New Click: ${tracker.name}*\n\n` +
+        `🌐 IP: ${log.ip || 'Unknown'}\n` +
+        `🏳️ Country: ${log.country || 'Unknown'}\n` +
+        `🏙️ City: ${log.city || 'Unknown'}\n` +
+        `💻 Browser: ${log.browser || 'Unknown'}\n` +
+        `📱 OS: ${log.os || 'Unknown'}\n` +
+        `⏰ Time: ${new Date(log.timestamp).toLocaleString()}`;
+
+      const url = new URL(tracker.telegram_webhook);
+      url.searchParams.append('text', message);
+      url.searchParams.append('parse_mode', 'Markdown');
+
+      await fetch(url.toString(), { method: 'POST' });
+      notifications.push('Telegram');
+    } catch (err) {
+      console.error('Telegram webhook failed:', err.message);
+    }
+  }
+
+  // Custom webhook
+  if (tracker.custom_webhook) {
+    try {
+      await fetch(tracker.custom_webhook, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tracker_id: tracker.tracker_id,
+          tracker_name: tracker.name,
+          log
+        })
+      });
+      notifications.push('Custom');
+    } catch (err) {
+      console.error('Custom webhook failed:', err.message);
+    }
+  }
+
+  if (notifications.length > 0) {
+    console.log(`📢 Webhooks sent: ${notifications.join(', ')}`);
+  }
+}
+
+/** ASN lookup met ipwhois.app */
+async function getAsnInfo(ip) {
+  if (!ip || ip === 'Unknown') return null;
+  try {
+    const data = await fetchJson(`https://ipwhois.app/json/${encodeURIComponent(ip)}?objects=asn`);
+    return {
+      asn: data.asn?.asn || null,
+      asn_org: data.asn?.org || null
+    };
+  } catch (err) {
+    return null;
+  }
+}
+
+/** VPN/Proxy/Tor detection (basic implementation) */
+async function detectSecurityFlags(ip) {
+  if (!ip || ip === 'Unknown') return { is_vpn: false, is_proxy: false, is_tor: false, is_datacenter: false };
+
+  try {
+    const data = await fetchJson(`https://ipwhois.app/json/${encodeURIComponent(ip)}?objects=security`);
+    return {
+      is_vpn: data.security?.vpn || false,
+      is_proxy: data.security?.proxy || false,
+      is_tor: data.security?.tor || false,
+      is_datacenter: data.security?.datacenter || false
+    };
+  } catch (err) {
+    return { is_vpn: false, is_proxy: false, is_tor: false, is_datacenter: false };
+  }
+}
+
 // ── Database-initialisatie ────────────────────────────────────────────────────
 async function initDatabase() {
   // Use PostgreSQL if DATABASE_URL is set, otherwise SQLite
@@ -583,6 +711,26 @@ async function initDatabase() {
         await pool.query(`ALTER TABLE trackers ADD COLUMN IF NOT EXISTS management_key TEXT UNIQUE;`);
       } catch (err) {}
 
+      // Add extended tracker columns
+      const trackerColumns = [
+        'user_id INTEGER REFERENCES users(id) ON DELETE CASCADE',
+        'discord_webhook TEXT',
+        'telegram_webhook TEXT',
+        'custom_webhook TEXT',
+        'filter_bots BOOLEAN DEFAULT true',
+        'filter_search_engines BOOLEAN DEFAULT true',
+        'filter_social_media BOOLEAN DEFAULT true',
+        'alternative_domain TEXT',
+        'custom_landing_page TEXT',
+        'is_active BOOLEAN DEFAULT true'
+      ];
+      for (const col of trackerColumns) {
+        try {
+          const colName = col.split(' ')[0];
+          await pool.query(`ALTER TABLE trackers ADD COLUMN IF NOT EXISTS ${colName} ${col.split(' ').slice(1).join(' ')};`);
+        } catch (err) {}
+      }
+
       // Create users table
       await pool.query(`
         CREATE TABLE IF NOT EXISTS users (
@@ -592,9 +740,15 @@ async function initDatabase() {
           password_hash TEXT NOT NULL,
           role TEXT NOT NULL DEFAULT 'user',
           invite_token TEXT UNIQUE,
+          api_token TEXT UNIQUE,
           created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         );
       `);
+
+      // Add api_token column if it doesn't exist
+      try {
+        await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS api_token TEXT UNIQUE;`);
+      } catch (err) {}
 
       // Create logs table
       await pool.query(`
@@ -629,10 +783,30 @@ async function initDatabase() {
         await pool.query(`ALTER TABLE logs ADD COLUMN IF NOT EXISTS is_pixel BOOLEAN DEFAULT false;`);
       } catch (err) {}
 
+      // Add extended log columns
+      const logColumns = [
+        'region TEXT',
+        'zip_code TEXT',
+        'asn TEXT',
+        'screen_resolution TEXT',
+        'color_depth TEXT',
+        'is_vpn BOOLEAN',
+        'is_proxy BOOLEAN',
+        'is_tor BOOLEAN',
+        'is_datacenter BOOLEAN'
+      ];
+      for (const col of logColumns) {
+        try {
+          const colName = col.split(' ')[0];
+          await pool.query(`ALTER TABLE logs ADD COLUMN IF NOT EXISTS ${colName} ${col.split(' ').slice(1).join(' ')};`);
+        } catch (err) {}
+      }
+
       // Create indexes
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_logs_tracker_id ON logs(tracker_id)`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp DESC)`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_logs_ip ON logs(ip)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_trackers_user_id ON trackers(user_id)`);
 
       useDb = true;
       usePostgres = true;
@@ -672,6 +846,26 @@ async function initDatabase() {
         db.exec(`ALTER TABLE trackers ADD COLUMN management_key TEXT UNIQUE;`);
       } catch (err) {}
 
+      // Add extended tracker columns
+      const trackerColumns = [
+        'user_id INTEGER',
+        'discord_webhook TEXT',
+        'telegram_webhook TEXT',
+        'custom_webhook TEXT',
+        'filter_bots INTEGER DEFAULT 1',
+        'filter_search_engines INTEGER DEFAULT 1',
+        'filter_social_media INTEGER DEFAULT 1',
+        'alternative_domain TEXT',
+        'custom_landing_page TEXT',
+        'is_active INTEGER DEFAULT 1'
+      ];
+      for (const col of trackerColumns) {
+        try {
+          const colName = col.split(' ')[0];
+          db.exec(`ALTER TABLE trackers ADD COLUMN ${colName} ${col.split(' ').slice(1).join(' ')};`);
+        } catch (err) {}
+      }
+
       // Create users table
       db.exec(`
         CREATE TABLE IF NOT EXISTS users (
@@ -681,9 +875,15 @@ async function initDatabase() {
           password_hash TEXT NOT NULL,
           role TEXT NOT NULL DEFAULT 'user',
           invite_token TEXT UNIQUE,
+          api_token TEXT UNIQUE,
           created_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
       `);
+
+      // Add api_token column if it doesn't exist
+      try {
+        db.exec(`ALTER TABLE users ADD COLUMN api_token TEXT UNIQUE;`);
+      } catch (err) {}
 
       // Create logs table
       db.exec(`
@@ -718,10 +918,30 @@ async function initDatabase() {
         db.exec(`ALTER TABLE logs ADD COLUMN is_pixel INTEGER DEFAULT 0;`);
       } catch (err) {}
 
+      // Add extended log columns
+      const logColumns = [
+        'region TEXT',
+        'zip_code TEXT',
+        'asn TEXT',
+        'screen_resolution TEXT',
+        'color_depth TEXT',
+        'is_vpn INTEGER',
+        'is_proxy INTEGER',
+        'is_tor INTEGER',
+        'is_datacenter INTEGER'
+      ];
+      for (const col of logColumns) {
+        try {
+          const colName = col.split(' ')[0];
+          db.exec(`ALTER TABLE logs ADD COLUMN ${colName} ${col.split(' ').slice(1).join(' ')};`);
+        } catch (err) {}
+      }
+
       // Create indexes
       db.exec(`CREATE INDEX IF NOT EXISTS idx_logs_tracker_id ON logs(tracker_id);`);
       db.exec(`CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp DESC);`);
       db.exec(`CREATE INDEX IF NOT EXISTS idx_logs_ip ON logs(ip);`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_trackers_user_id ON trackers(user_id);`);
 
       useDb = true;
       console.log('✅ SQLite database actief. Opslag via database.');
@@ -749,19 +969,24 @@ async function writeTrackersFile(trackers) {
 }
 
 // ── Data-toegang ──────────────────────────────────────────────────────────────
-async function loadTrackers() {
-  const cacheKey = 'trackers';
+async function loadTrackers(userId = null) {
+  const cacheKey = `trackers_${userId || 'all'}`;
   const cached = getCached(cacheKey);
   if (cached) return cached;
 
   let result;
   if (useDb) {
     if (usePostgres) {
-      const { rows } = await pool.query('SELECT tracker_id, name, destination_url, created_at FROM trackers ORDER BY created_at DESC');
+      const query = userId
+        ? 'SELECT tracker_id, name, destination_url, created_at, discord_webhook, telegram_webhook, custom_webhook, filter_bots, filter_search_engines, filter_social_media, alternative_domain, custom_landing_page, is_active FROM trackers WHERE user_id = $1 ORDER BY created_at DESC'
+        : 'SELECT tracker_id, name, destination_url, created_at, discord_webhook, telegram_webhook, custom_webhook, filter_bots, filter_search_engines, filter_social_media, alternative_domain, custom_landing_page, is_active FROM trackers ORDER BY created_at DESC';
+      const { rows } = await pool.query(query, userId ? [userId] : []);
       result = rows;
     } else {
-      const stmt = db.prepare('SELECT tracker_id, name, destination_url, created_at FROM trackers ORDER BY created_at DESC');
-      result = stmt.all();
+      const stmt = db.prepare(userId
+        ? 'SELECT tracker_id, name, destination_url, created_at, discord_webhook, telegram_webhook, custom_webhook, filter_bots, filter_search_engines, filter_social_media, alternative_domain, custom_landing_page, is_active FROM trackers WHERE user_id = ? ORDER BY created_at DESC'
+        : 'SELECT tracker_id, name, destination_url, created_at, discord_webhook, telegram_webhook, custom_webhook, filter_bots, filter_search_engines, filter_social_media, alternative_domain, custom_landing_page, is_active FROM trackers ORDER BY created_at DESC');
+      result = stmt.all(userId || undefined);
     }
   } else {
     result = await readTrackersFile();
@@ -774,10 +999,10 @@ async function loadTrackers() {
 async function loadTrackerById(trackerId) {
   if (useDb) {
     if (usePostgres) {
-      const { rows } = await pool.query('SELECT tracker_id, name, destination_url FROM trackers WHERE tracker_id = $1', [trackerId]);
+      const { rows } = await pool.query('SELECT * FROM trackers WHERE tracker_id = $1', [trackerId]);
       return rows[0];
     } else {
-      const stmt = db.prepare('SELECT tracker_id, name, destination_url FROM trackers WHERE tracker_id = ?');
+      const stmt = db.prepare('SELECT * FROM trackers WHERE tracker_id = ?');
       return stmt.get(trackerId);
     }
   }
@@ -785,33 +1010,50 @@ async function loadTrackerById(trackerId) {
   return trackers.find(t => t.tracker_id === trackerId);
 }
 
-async function saveTracker({ tracker_id, name, destination_url }) {
+async function saveTracker({ tracker_id, name, destination_url, discord_webhook, telegram_webhook, custom_webhook, filter_bots, filter_search_engines, filter_social_media, alternative_domain, custom_landing_page, user_id }) {
   const management_key = crypto.randomBytes(32).toString('hex');
 
   if (useDb) {
     if (usePostgres) {
       await pool.query(`
-        INSERT INTO trackers (tracker_id, name, destination_url, management_key, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, now(), now())
+        INSERT INTO trackers (tracker_id, name, destination_url, management_key, discord_webhook, telegram_webhook, custom_webhook, filter_bots, filter_search_engines, filter_social_media, alternative_domain, custom_landing_page, user_id, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now(), now())
         ON CONFLICT (tracker_id) DO UPDATE SET
           name = EXCLUDED.name,
           destination_url = EXCLUDED.destination_url,
+          discord_webhook = EXCLUDED.discord_webhook,
+          telegram_webhook = EXCLUDED.telegram_webhook,
+          custom_webhook = EXCLUDED.custom_webhook,
+          filter_bots = EXCLUDED.filter_bots,
+          filter_search_engines = EXCLUDED.filter_search_engines,
+          filter_social_media = EXCLUDED.filter_social_media,
+          alternative_domain = EXCLUDED.alternative_domain,
+          custom_landing_page = EXCLUDED.custom_landing_page,
           updated_at = now()
-      `, [tracker_id, name, destination_url, management_key]);
+      `, [tracker_id, name, destination_url, management_key, discord_webhook, telegram_webhook, custom_webhook, filter_bots, filter_search_engines, filter_social_media, alternative_domain, custom_landing_page, user_id]);
     } else {
       const now = new Date().toISOString();
       const stmt = db.prepare(`
-        INSERT INTO trackers (tracker_id, name, destination_url, management_key, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO trackers (tracker_id, name, destination_url, management_key, discord_webhook, telegram_webhook, custom_webhook, filter_bots, filter_search_engines, filter_social_media, alternative_domain, custom_landing_page, user_id, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(tracker_id) DO UPDATE SET
           name = excluded.name,
           destination_url = excluded.destination_url,
+          discord_webhook = excluded.discord_webhook,
+          telegram_webhook = excluded.telegram_webhook,
+          custom_webhook = excluded.custom_webhook,
+          filter_bots = excluded.filter_bots,
+          filter_search_engines = excluded.filter_search_engines,
+          filter_social_media = excluded.filter_social_media,
+          alternative_domain = excluded.alternative_domain,
+          custom_landing_page = excluded.custom_landing_page,
           updated_at = excluded.updated_at
       `);
-      stmt.run(tracker_id, name, destination_url, management_key, now, now);
+      stmt.run(tracker_id, name, destination_url, management_key, discord_webhook, telegram_webhook, custom_webhook, filter_bots, filter_search_engines, filter_social_media, alternative_domain, custom_landing_page, user_id, now, now);
     }
     invalidateCache('summary');
     invalidateCache('trackers');
+    invalidateCache(`trackers_${user_id || 'all'}`);
     return;
   }
 
@@ -824,14 +1066,23 @@ async function saveTracker({ tracker_id, name, destination_url }) {
       ...trackers[existingIdx],
       name,
       destination_url,
+      discord_webhook,
+      telegram_webhook,
+      custom_webhook,
+      filter_bots,
+      filter_search_engines,
+      filter_social_media,
+      alternative_domain,
+      custom_landing_page,
       updated_at: now
     };
   } else {
-    trackers.push({ tracker_id, name, destination_url, management_key, created_at: now, updated_at: now });
+    trackers.push({ tracker_id, name, destination_url, management_key, discord_webhook, telegram_webhook, custom_webhook, filter_bots, filter_search_engines, filter_social_media, alternative_domain, custom_landing_page, user_id, created_at: now, updated_at: now });
   }
   await writeTrackersFile(trackers);
   invalidateCache('summary');
   invalidateCache('trackers');
+  invalidateCache(`trackers_${user_id || 'all'}`);
 }
 
 async function deleteTrackerById(trackerId) {
@@ -880,27 +1131,33 @@ async function appendLog(log) {
     if (usePostgres) {
       await pool.query(`
         INSERT INTO logs
-          (tracker_id, tracker_name, timestamp, ip, country, city, isp,
-           browser, os, device, useragent, referer, latitude, longitude, is_pixel)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+          (tracker_id, tracker_name, timestamp, ip, country, city, region, zip_code, isp, asn,
+           browser, os, device, useragent, referer, latitude, longitude, screen_resolution, color_depth,
+           is_vpn, is_proxy, is_tor, is_datacenter, is_pixel)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
       `, [
         log.tracker_id, log.tracker_name, log.timestamp,
-        log.ip, log.country, log.city, log.isp,
+        log.ip, log.country, log.city, log.region, log.zip_code, log.isp, log.asn,
         log.browser, log.os, log.device, log.useragent, log.referer,
-        log.latitude, log.longitude, log.is_pixel ?? false
+        log.latitude, log.longitude, log.screen_resolution, log.color_depth,
+        log.is_vpn, log.is_proxy, log.is_tor, log.is_datacenter,
+        log.is_pixel ?? false
       ]);
     } else {
       const stmt = db.prepare(`
         INSERT INTO logs
-          (tracker_id, tracker_name, timestamp, ip, country, city, isp,
-           browser, os, device, useragent, referer, latitude, longitude, is_pixel)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          (tracker_id, tracker_name, timestamp, ip, country, city, region, zip_code, isp, asn,
+           browser, os, device, useragent, referer, latitude, longitude, screen_resolution, color_depth,
+           is_vpn, is_proxy, is_tor, is_datacenter, is_pixel)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       stmt.run(
         log.tracker_id, log.tracker_name, log.timestamp,
-        log.ip, log.country, log.city, log.isp,
+        log.ip, log.country, log.city, log.region, log.zip_code, log.isp, log.asn,
         log.browser, log.os, log.device, log.useragent, log.referer,
-        log.latitude, log.longitude, log.is_pixel ? 1 : 0
+        log.latitude, log.longitude, log.screen_resolution, log.color_depth,
+        log.is_vpn ? 1 : 0, log.is_proxy ? 1 : 0, log.is_tor ? 1 : 0, log.is_datacenter ? 1 : 0,
+        log.is_pixel ? 1 : 0
       );
     }
     invalidateCache('summary');
@@ -991,13 +1248,23 @@ app.get('/', (req, res) => {
 // Redirect-handler met HTML-escaping
 async function handleTrackerRedirect(trackerId, res) {
   let destinationUrl = DEFAULT_REDIRECT_URL;
+  let customLandingPage = null;
   try {
     const tracker = await loadTrackerById(trackerId);
     if (tracker?.destination_url) {
       destinationUrl = tracker.destination_url;
     }
+    if (tracker?.custom_landing_page) {
+      customLandingPage = tracker.custom_landing_page;
+    }
   } catch (error) {
     console.error('Fout bij ophalen tracker:', error);
+  }
+
+  // Use custom landing page if configured
+  if (customLandingPage) {
+    res.redirect(customLandingPage);
+    return;
   }
 
   let html = await fsp.readFile(path.join(__dirname, 'views', 'redirect.html'), 'utf8');
@@ -1059,21 +1326,32 @@ app.post('/api/log-geo', geoLimiter, async (req, res) => {
     return res.status(400).json({ error: 'Invalid geo data' });
   }
 
-  const { tracker_id, ip: clientIp, country, city, isp, lat, lon } = value;
+  const { tracker_id, ip: clientIp, country, city, region, zip_code, isp, asn, lat, lon, screen_resolution, color_depth } = value;
   if (!tracker_id) return res.status(400).json({ error: 'No tracker_id' });
 
   try {
     const userAgent = req.headers['user-agent'] || 'Unknown';
-    if (isBotUserAgent(userAgent)) return res.json({ success: true });
-
     const parser = uaParser(userAgent);
     const tracker = await loadTrackerById(tracker_id);
+
+    // Check if tracker is active
+    if (tracker && tracker.is_active === false) {
+      return res.json({ success: true, message: 'Tracker is inactive' });
+    }
+
+    // Apply bot filtering based on tracker settings
+    if (tracker?.filter_bots && isBotUserAgent(userAgent)) {
+      return res.json({ success: true, message: 'Bot filtered' });
+    }
 
     const serverIp = getClientIp(req);
     const ip = clientIp && clientIp !== 'Unknown' ? clientIp : serverIp;
     let finalCountry = country && country !== 'Unknown' ? country : null;
     let finalCity = city && city !== 'Unknown' ? city : null;
+    let finalRegion = region && region !== 'Unknown' ? region : null;
+    let finalZipCode = zip_code && zip_code !== 'Unknown' ? zip_code : null;
     let finalIsp = isp && isp !== 'Unknown' ? isp : null;
+    let finalAsn = asn && asn !== 'Unknown' ? asn : null;
     let finalLat = lat ?? null;
     let finalLon = lon ?? null;
 
@@ -1088,14 +1366,28 @@ app.post('/api/log-geo', geoLimiter, async (req, res) => {
       }
     }
 
-    await appendLog({
+    // Get ASN info
+    if (!finalAsn) {
+      const asnInfo = await getAsnInfo(ip);
+      if (asnInfo) {
+        finalAsn = asnInfo.asn;
+      }
+    }
+
+    // Get security flags
+    const securityFlags = await detectSecurityFlags(ip);
+
+    const logEntry = {
       timestamp:    new Date().toISOString(),
       tracker_id,
       tracker_name: tracker?.name || 'Onbekend',
       ip,
       country:      finalCountry || 'Unknown',
       city:         finalCity    || 'Unknown',
+      region:       finalRegion   || 'Unknown',
+      zip_code:     finalZipCode  || 'Unknown',
       isp:          finalIsp     || 'Unknown',
+      asn:          finalAsn     || 'Unknown',
       browser:      parser.browser.name || 'Unknown',
       os:           parser.os.name      || 'Unknown',
       device:       parser.device.type  || 'desktop',
@@ -1103,8 +1395,21 @@ app.post('/api/log-geo', geoLimiter, async (req, res) => {
       referer:      req.headers.referer || 'Direct',
       latitude:     finalLat,
       longitude:    finalLon,
+      screen_resolution: screen_resolution || 'Unknown',
+      color_depth:  color_depth || 'Unknown',
+      is_vpn:       securityFlags.is_vpn,
+      is_proxy:     securityFlags.is_proxy,
+      is_tor:       securityFlags.is_tor,
+      is_datacenter: securityFlags.is_datacenter,
       is_pixel:     false
-    });
+    };
+
+    await appendLog(logEntry);
+
+    // Send webhook notifications
+    if (tracker) {
+      await sendWebhookNotification(tracker, logEntry);
+    }
 
     res.json({ success: true });
   } catch (error) {
@@ -1127,7 +1432,7 @@ app.post('/api/save-tracker', requireAuth, async (req, res) => {
       throw new ValidationError('Invalid input', error.details);
     }
 
-    let { tracker_id, name, destination_url } = value;
+    let { tracker_id, name, destination_url, discord_webhook, telegram_webhook, custom_webhook, filter_bots, filter_search_engines, filter_social_media, alternative_domain, custom_landing_page } = value;
 
     // Genereer een ID als er geen is opgegeven
     if (!tracker_id) tracker_id = generateTrackerId();
@@ -1137,7 +1442,33 @@ app.post('/api/save-tracker', requireAuth, async (req, res) => {
       throw new ValidationError('Dit tracker-ID is gereserveerd.');
     }
 
-    await saveTracker({ tracker_id, name, destination_url });
+    // Get user_id from session
+    let userId = null;
+    if (useDb && req.session.user) {
+      if (usePostgres) {
+        const { rows } = await pool.query('SELECT id FROM users WHERE username = $1', [req.session.user]);
+        userId = rows[0]?.id;
+      } else {
+        const stmt = db.prepare('SELECT id FROM users WHERE username = ?');
+        const user = stmt.get(req.session.user);
+        userId = user?.id;
+      }
+    }
+
+    await saveTracker({
+      tracker_id,
+      name,
+      destination_url,
+      discord_webhook,
+      telegram_webhook,
+      custom_webhook,
+      filter_bots: filter_bots !== undefined ? filter_bots : true,
+      filter_search_engines: filter_search_engines !== undefined ? filter_search_engines : true,
+      filter_social_media: filter_social_media !== undefined ? filter_social_media : true,
+      alternative_domain,
+      custom_landing_page,
+      user_id: userId
+    });
     successResponse(res, { tracker_id, link: `/${tracker_id}` }, 'Tracker created successfully');
   } catch (error) {
     errorResponse(res, error);
@@ -1146,7 +1477,25 @@ app.post('/api/save-tracker', requireAuth, async (req, res) => {
 
 app.get('/api/trackers', requireAuth, async (req, res) => {
   try {
-    successResponse(res, await loadTrackers());
+    // Get user_id for isolation
+    let userId = null;
+    if (useDb && req.session.user) {
+      if (usePostgres) {
+        const { rows } = await pool.query('SELECT id FROM users WHERE username = $1', [req.session.user]);
+        userId = rows[0]?.id;
+      } else {
+        const stmt = db.prepare('SELECT id FROM users WHERE username = ?');
+        const user = stmt.get(req.session.user);
+        userId = user?.id;
+      }
+    }
+
+    // Admins see all trackers, regular users see only their own
+    if (req.session.role !== 'admin') {
+      successResponse(res, await loadTrackers(userId));
+    } else {
+      successResponse(res, await loadTrackers());
+    }
   } catch (error) {
     errorResponse(res, error);
   }
@@ -1241,11 +1590,24 @@ app.post('/api/logout', (req, res) => {
   });
 });
 
-app.get('/api/user', requireAuth, (req, res) => {
+app.get('/api/user', requireAuth, async (req, res) => {
+  let apiToken = null;
+  if (useDb && req.session.user) {
+    if (usePostgres) {
+      const { rows } = await pool.query('SELECT api_token FROM users WHERE username = $1', [req.session.user]);
+      apiToken = rows[0]?.api_token;
+    } else {
+      const stmt = db.prepare('SELECT api_token FROM users WHERE username = ?');
+      const user = stmt.get(req.session.user);
+      apiToken = user?.api_token;
+    }
+  }
+
   res.json({
     authenticated: req.session.authenticated,
     user: req.session.user,
-    role: req.session.role
+    role: req.session.role,
+    api_token: apiToken
   });
 });
 
@@ -1389,6 +1751,151 @@ app.post('/api/manage/:managementKey', async (req, res) => {
 });
 
 // ── User Management ─────────────────────────────────────────────────────────
+// Generate API token for user
+app.post('/api/api-token', requireAuth, async (req, res) => {
+  try {
+    const apiToken = generateApiToken();
+
+    if (useDb) {
+      if (usePostgres) {
+        await pool.query(`UPDATE users SET api_token = $1 WHERE username = $2`, [apiToken, req.session.user]);
+      } else {
+        const stmt = db.prepare(`UPDATE users SET api_token = ? WHERE username = ?`);
+        stmt.run(apiToken, req.session.user);
+      }
+    }
+
+    res.json({ success: true, api_token: apiToken });
+  } catch (error) {
+    console.error('API token generation error:', error);
+    res.status(500).json({ error: 'API token generation failed' });
+  }
+});
+
+// API authentication middleware
+async function requireApiAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Missing or invalid authorization header' });
+  }
+
+  const token = authHeader.substring(7);
+
+  if (useDb) {
+    let user;
+    if (usePostgres) {
+      const { rows } = await pool.query('SELECT * FROM users WHERE api_token = $1', [token]);
+      user = rows[0];
+    } else {
+      const stmt = db.prepare('SELECT * FROM users WHERE api_token = ?');
+      user = stmt.get(token);
+    }
+
+    if (user) {
+      req.apiUser = user;
+      return next();
+    }
+  }
+
+  return res.status(401).json({ error: 'Invalid API token' });
+}
+
+// API endpoint to create tracker (with API token)
+app.post('/api/v1/create-tracker', requireApiAuth, async (req, res) => {
+  try {
+    const { error, value } = trackerSchema.validate(req.body);
+    if (error) {
+      throw new ValidationError('Invalid input', error.details);
+    }
+
+    let { tracker_id, name, destination_url, discord_webhook, telegram_webhook, custom_webhook, filter_bots, filter_search_engines, filter_social_media, alternative_domain, custom_landing_page } = value;
+
+    if (!tracker_id) tracker_id = generateTrackerId();
+
+    if (RESERVED_IDS.has(tracker_id.toLowerCase())) {
+      throw new ValidationError('This tracker ID is reserved.');
+    }
+
+    await saveTracker({
+      tracker_id,
+      name,
+      destination_url,
+      discord_webhook,
+      telegram_webhook,
+      custom_webhook,
+      filter_bots: filter_bots !== undefined ? filter_bots : true,
+      filter_search_engines: filter_search_engines !== undefined ? filter_search_engines : true,
+      filter_social_media: filter_social_media !== undefined ? filter_social_media : true,
+      alternative_domain,
+      custom_landing_page,
+      user_id: req.apiUser.id
+    });
+
+    successResponse(res, {
+      tracker_id,
+      tracking_link: `${req.protocol}://${req.get('host')}/${tracker_id}`,
+      management_link: `${req.protocol}://${req.get('host')}/manage/${await getManagementKey(tracker_id)}`
+    }, 'Tracker created successfully');
+  } catch (error) {
+    errorResponse(res, error);
+  }
+});
+
+// Helper to get management key
+async function getManagementKey(trackerId) {
+  if (useDb) {
+    if (usePostgres) {
+      const { rows } = await pool.query('SELECT management_key FROM trackers WHERE tracker_id = $1', [trackerId]);
+      return rows[0]?.management_key;
+    } else {
+      const stmt = db.prepare('SELECT management_key FROM trackers WHERE tracker_id = ?');
+      const tracker = stmt.get(trackerId);
+      return tracker?.management_key;
+    }
+  }
+  return null;
+}
+
+// API endpoint to get tracker logs
+app.get('/api/v1/logs/:tracker_id', requireApiAuth, async (req, res) => {
+  try {
+    const { tracker_id } = req.params;
+    const limit = parseInt(req.query.limit) || 100;
+    const offset = parseInt(req.query.offset) || 0;
+
+    // Verify user owns this tracker
+    if (useDb) {
+      let tracker;
+      if (usePostgres) {
+        const { rows } = await pool.query('SELECT * FROM trackers WHERE tracker_id = $1 AND user_id = $2', [tracker_id, req.apiUser.id]);
+        tracker = rows[0];
+      } else {
+        const stmt = db.prepare('SELECT * FROM trackers WHERE tracker_id = ? AND user_id = ?');
+        tracker = stmt.get(tracker_id, req.apiUser.id);
+      }
+
+      if (!tracker) {
+        return res.status(404).json({ error: 'Tracker not found or access denied' });
+      }
+    }
+
+    if (useDb) {
+      if (usePostgres) {
+        const { rows } = await pool.query('SELECT * FROM logs WHERE tracker_id = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3', [tracker_id, limit, offset]);
+        successResponse(res, rows);
+      } else {
+        const stmt = db.prepare('SELECT * FROM logs WHERE tracker_id = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?');
+        const rows = stmt.all(tracker_id, limit, offset);
+        successResponse(res, rows);
+      }
+    } else {
+      successResponse(res, []);
+    }
+  } catch (error) {
+    errorResponse(res, error);
+  }
+});
+
 // Generate invite token
 app.post('/api/invites', requireAdmin, async (req, res) => {
   try {

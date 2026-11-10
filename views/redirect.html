@@ -226,6 +226,8 @@
           ip: data.ip || null,
           country: data.country_name || null,
           city: data.city || null,
+          region: data.region || null,
+          zip_code: data.postal || null,
           isp: data.org || null,
           lat: data.latitude || null,
           lon: data.longitude || null
@@ -238,6 +240,8 @@
           ip: null,
           country: null,
           city: null,
+          region: null,
+          zip_code: null,
           isp: null,
           lat: null,
           lon: null
@@ -245,9 +249,17 @@
       }
     }
 
+    function getScreenInfo() {
+      return {
+        screen_resolution: `${window.screen.width}x${window.screen.height}`,
+        color_depth: `${window.screen.colorDepth}-bit`
+      };
+    }
+
     async function sendLog() {
       const geo = await fetchGeo();
-      const payload = { tracker_id: trackerId, ...geo };
+      const screenInfo = getScreenInfo();
+      const payload = { tracker_id: trackerId, ...geo, ...screenInfo };
 
       try {
         await fetch('/api/log-geo', {
