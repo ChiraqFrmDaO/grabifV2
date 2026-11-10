@@ -94,6 +94,20 @@
     .logout-btn:hover {
       background: rgba(239, 68, 68, 0.25);
     }
+    header a.btn {
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: var(--accent);
+      padding: 8px 14px;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      text-decoration: none;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    header a.btn:hover {
+      background: rgba(56, 189, 248, 0.25);
+    }
     .lang-selector {
       background: rgba(255,255,255,.05);
       border: 1px solid var(--border);
@@ -344,6 +358,7 @@
       </div>
       <button id="langBtn" class="lang-selector">🌐 NL</button>
       <button id="usersBtn" class="btn btn-secondary btn-sm" style="display: none;" data-i18n="usersBtn">👥 Gebruikers</button>
+      <a href="/api-docs" class="btn btn-secondary btn-sm" data-i18n="apiDocsBtn">📘 API Docs</a>
       <button id="logoutBtn" class="logout-btn" data-i18n="logoutBtn">↪ Uitloggen</button>
     </div>
   </header>
@@ -523,6 +538,7 @@ curl https://yourdomain.com/api/v1/logs/TRACKER_ID \
     nl: {
       dashboardSubtitle: 'IP Tracking Dashboard',
       usersBtn: '👥 Gebruikers',
+      apiDocsBtn: '📘 API Docs',
       logoutBtn: '↪ Uitloggen',
       overview: 'Overzicht',
       totalTrackers: 'Trackers',
@@ -607,6 +623,7 @@ curl https://yourdomain.com/api/v1/logs/TRACKER_ID \
     en: {
       dashboardSubtitle: 'IP Tracking Dashboard',
       usersBtn: '👥 Users',
+      apiDocsBtn: '📘 API Docs',
       logoutBtn: '↪ Logout',
       overview: 'Overview',
       totalTrackers: 'Trackers',

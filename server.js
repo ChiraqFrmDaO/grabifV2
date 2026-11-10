@@ -1615,6 +1615,10 @@ app.get('/dashboard', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'views', 'dashboard.html'));
 });
 
+app.get('/api-docs', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'views', 'api-docs.html'));
+});
+
 // Admin page (admin only - user management, invites)
 app.get('/admin', requireAdmin, (req, res) => {
   res.sendFile(path.join(__dirname, 'views', 'admin.html'));

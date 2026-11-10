@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Documentation - Grabify V2</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@600;800&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #07080f;
+      --surface:  #0d0f1d;
+      --border:   rgba(148,163,184,.12);
+      --text:     #dde2ef;
+      --muted:    #64748b;
+      --accent:   #38bdf8;
+      --green:    #22c55e;
+      --red:      #ef4444;
+      --code:     #a5d6ff;
+    }
+
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 24px 20px 60px;
+    }
+
+    .container { max-width: 900px; margin: 0 auto; }
+
+    header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 30px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    header h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      background: linear-gradient(90deg, #00ff88, #00ccff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    header a {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.85rem;
+    }
+
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    h2 {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 16px;
+      letter-spacing: 0.06em;
+    }
+
+    h3 {
+      font-size: 1rem;
+      color: var(--text);
+      margin: 16px 0 8px;
+    }
+
+    p { margin-bottom: 16px; color: var(--muted); }
+
+    pre {
+      background: rgba(0,0,0,.3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      overflow-x: auto;
+      margin: 16px 0;
+      font-size: 0.85rem;
+    }
+
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--code);
+      background: rgba(165, 214, 255, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    .endpoint {
+      background: rgba(255,255,255,.03);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin: 16px 0;
+    }
+
+    .method {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-right: 8px;
+    }
+    .method.get { background: var(--green); color: #0b1219; }
+    .method.post { background: var(--accent); color: #0b1219; }
+    .method.delete { background: var(--red); color: #fff; }
+
+    .url {
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--code);
+      font-size: 0.9rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 0.85rem;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      margin: 2px;
+    }
+    .badge-required { background: var(--red); color: #fff; }
+    .badge-optional { background: var(--muted); }
+
+    .note {
+      background: rgba(34, 197, 94, 0.1);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      border-radius: 8px;
+      padding: 12px;
+      margin: 16px 0;
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>📘 API Documentation</h1>
+    <a href="/dashboard">← Back to Dashboard</a>
+  </header>
+
+  <div class="section">
+    <h2>Authentication</h2>
+    <p>All API endpoints require authentication using a Bearer token. Include your API token in the Authorization header:</p>
+    <pre><code>Authorization: Bearer YOUR_API_TOKEN</code></pre>
+    <p>You can generate an API token in your dashboard under the "API Token" section.</p>
+  </div>
+
+  <div class="section">
+    <h2>Base URL</h2>
+    <pre><code>https://yourdomain.com/api/v1</code></pre>
+  </div>
+
+  <div class="section">
+    <h2>Endpoints</h2>
+
+    <h3>Create Tracker</h3>
+    <div class="endpoint">
+      <span class="method post">POST</span>
+      <span class="url">/create-tracker</span>
+    </div>
+    <p>Create a new tracking link programmatically.</p>
+    <pre><code>POST /api/v1/create-tracker
+Authorization: Bearer YOUR_TOKEN
+Content-Type: application/json
+
+{
+  "name": "My Tracker",
+  "destination_url": "https://example.com",
+  "discord_webhook": "https://discord.com/api/webhooks/...",
+  "telegram_webhook": "https://api.telegram.org/bot.../sendMessage",
+  "custom_webhook": "https://yourserver.com/webhook",
+  "filter_bots": true,
+  "filter_search_engines": true,
+  "filter_social_media": true,
+  "alternative_domain": "https://alternative-domain.com",
+  "custom_landing_page": "https://yourpage.com/custom"
+}</code></pre>
+
+    <table>
+      <tr>
+        <th>Field</th>
+        <th>Type</th>
+        <th>Required</th>
+        <th>Description</th>
+      </tr>
+      <tr>
+        <td><code>name</code></td>
+        <td>string</td>
+        <td><span class="badge badge-required">Required</span></td>
+        <td>Name of the tracker</td>
+      </tr>
+      <tr>
+        <td><code>destination_url</code></td>
+        <td>string</td>
+        <td><span class="badge badge-required">Required</span></td>
+        <td>Target URL to redirect to (must be https://)</td>
+      </tr>
+      <tr>
+        <td><code>discord_webhook</code></td>
+        <td>string</td>
+        <td><span class="badge badge-optional">Optional</span></td>
+        <td>Discord webhook URL for notifications</td>
+      </tr>
+      <tr>
+        <td><code>telegram_webhook</code></td>
+td>
+        <td>string</td>
+        <td><span class="badge badge-optional">Optional</span></td>
+        <td>Telegram bot URL for notifications</td>
+      </tr>
+      <tr>
+        <td><code>custom_webhook</code></td>
+        <td>string</td>
+        <td><span class="badge badge-optional">Optional</span></td>
+        <td>Custom webhook URL for notifications</td>
+      </tr>
+      <tr>
+        <td><code>filter_bots</code></td>
+        <td>boolean</td>
+        <td><span class="badge badge-optional">Optional</span></td>
+        <td>Filter bot traffic (default: true)</td>
+      </tr>
+      <tr>
+        <td><code>filter_search_engines</code></td>
+        <td>boolean</td>
+        <td><span class="badge badge-optional">Optional</span></td>
+        <td>Filter search engine crawlers (default: true)</td>
+      </tr>
+      <tr>
+        <td><code>filter_social_media</code></td>
+        <td>boolean</td>
+        <td><span class="badge badge-optional">Optional</span></td>
+        <td>Filter social media crawlers (default: true)</td>
+      </tr>
+      <tr>
+        <td><code>alternative_domain</code></td>
+        <td>string</td>
+        <td><span class="badge badge-optional">Optional</span></td>
+        <td>Alternative domain for URL masking</td>
+      </tr>
+      <tr>
+        <td><code>custom_landing_page</code></td>
+        <td>string</td>
+        <td><span class="badge badge-optional">Optional</span></td>
+        <td>Custom landing page URL</td>
+      </tr>
+    </table>
+
+    <p><strong>Response:</strong></p>
+    <pre><code>{
+  "success": true,
+  "message": "Tracker created successfully",
+  "data": {
+    "tracker_id": "abc123",
+    "tracking_link": "https://yourdomain.com/abc123",
+    "management_link": "https://yourdomain.com/manage/xyz789"
+  }
+}</code></pre>
+  </div>
+
+  <div class="section">
+    <h3>Get Logs</h3>
+    <div class="endpoint">
+      <span class="method get">GET</span>
+      <span class="url">/logs/:tracker_id</span>
+    </div>
+    <p>Retrieve logs for a specific tracker.</p>
+    <pre><code>GET /api/v1/logs/abc123
+Authorization: Bearer YOUR_API_TOKEN</code></pre>
+
+    <table>
+      <tr>
+        <th>Parameter</th>
+        <th>Type</th>
+        <th>Required</th>
+        <th>Description</th>
+      </tr>
+      <tr>
+        <td><code>tracker_id</code></td>
+        <td>string</td>
+        <td><span class="badge badge-required">Required</span></td>
+        <td>The tracker ID to retrieve logs for</td>
+      </tr>
+    </table>
+
+    <p><strong>Query Parameters:</strong></p>
+    <table>
+      <tr>
+        <th>Parameter</th>
+        <th>Type</th>
+        <th>Default</th>
+        <th>Description</th>
+      </tr>
+      <tr>
+        <td><code>limit</code></td>
+        <td>integer</td>
+        <td>100</td>
+        <td>Maximum number of logs to return</td>
+      </tr>
+      <tr>
+        <td><code>offset</code></td>
+        <td>integer</td>
+        <td>0</td>
+        <td>Offset for pagination</td>
+      </tr>
+    </table>
+
+    <p><strong>Response:</strong></p>
+    <pre><code>[
+  {
+    "id": 1,
+    "tracker_id": "abc123",
+    "tracker_name": "My Tracker",
+    "timestamp": "2026-11-10T15:00:00.000Z",
+    "ip": "1.2.3.4",
+    "country": "Netherlands",
+    "city": "Amsterdam",
+    "browser": "Chrome",
+    "os": "Windows",
+    "device": "desktop",
+    "is_vpn": false,
+    "is_proxy": false,
+    "is_tor": false,
+    "is_datacenter": false
+  }
+]</code></pre>
+  </div>
+
+  <div class="section">
+    <h2>Rate Limiting</h2>
+    <p>API endpoints are rate limited to prevent abuse:</p>
+    <ul>
+      <li>100 requests per minute per IP</li>
+      <li>Authenticated users have higher limits</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>Error Codes</h2>
+    <table>
+      <tr>
+        <th>Code</th>
+        <th>Description</th>
+      </tr>
+      <tr>
+        <td>200</td>
+        <td>Success</td>
+      </tr>
+      <tr>
+        <td>400</td>
+        <td>Bad Request - Invalid input</td>
+      </tr>
+      <tr>
+        <td>401</td>
+        <td>Unauthorized - Invalid or missing API token</td>
+      </tr>
+      <tr>
+        <td>403</td>
+        <td>Forbidden - Access denied to tracker</td>
+      </tr>
+      <tr>
+        <td>404</td>
+        <td>Not Found - Tracker not found</td>
+      </tr>
+      <tr>
+        <td>429</td>
+        <td>Too Many Requests - Rate limit exceeded</td>
+      </tr>
+      <tr>
+        <td>500</td>
+        <td>Internal Server Error</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Examples</h2>
+
+    <h3>JavaScript (Node.js)</h3>
+    <pre><code>const response = await fetch('https://yourdomain.com/api/v1/create-tracker', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_TOKEN',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    name: 'Test Tracker',
+    destination_url: 'https://example.com'
+  })
+});
+
+const data = await response.json();
+console.log(data);</code></pre>
+
+    <h3>Python</h3>
+    <pre><code>import requests
+
+headers = {
+    'Authorization': 'Bearer YOUR_API_TOKEN',
+    'Content-Type': 'application/json'
+}
+
+data = {
+    'name': 'Test Tracker',
+    'destination_url': 'https://example.com'
+}
+
+response = requests.post('https://yourdomain.com/api/v1/create-tracker', 
+                         headers=headers, json=data)
+print(response.json())</code></pre>
+
+    <h3>cURL</h3>
+    <pre><code>curl -X POST https://yourdomain.com/api/v1/create-tracker \
+  -H "Authorization: Bearer YOUR_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Test Tracker","destination_url":"https://example.com"}'</code></pre>
+  </div>
+
+  <div class="section">
+    <div class="note">
+      <strong>⚠️ Security Note:</strong> Never share your API token publicly. Treat it like a password. Regenerate it if compromised.
+    </div>
+  </div>
+</div>
+</body>
+</html>
