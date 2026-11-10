@@ -1,7 +1,7 @@
-# IP Logger - Grabify Clone
+# IP Logger - LinkSpy Clone
 
 Een professionele IP tracking applicatie met Node.js en SQLite/PostgreSQL.
-Een volledige Grabify IP Logger clone met geavanceerde features.
+Een volledige LinkSpy IP Logger clone met geavanceerde features.
 
 ## Installatie
 
@@ -61,7 +61,7 @@ Voor PostgreSQL deploy:
 - 💾 SQLite database (geen externe database server nodig)
 - 🚀 Query caching voor betere performance
 
-### Advanced Features (Grabify-like)
+### Advanced Features (LinkSpy-like)
 - 🔔 Webhook integraties: Discord, Telegram, Custom webhooks
 - 🤖 Geavanceerde bot filtering: bots, search engines, social media crawlers
 - 🌐 Alternatieve domein masking voor URL filtering bypass
