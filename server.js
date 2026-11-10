@@ -67,14 +67,14 @@ const trackerSchema = Joi.object({
   tracker_id: Joi.string().alphanum().min(1).max(32).optional(),
   name: Joi.string().min(1).max(100).required(),
   destination_url: Joi.string().uri({ scheme: ['https'] }).required(),
-  discord_webhook: Joi.string().uri().optional(),
-  telegram_webhook: Joi.string().uri().optional(),
-  custom_webhook: Joi.string().uri().optional(),
+  discord_webhook: Joi.string().uri().allow('').optional(),
+  telegram_webhook: Joi.string().uri().allow('').optional(),
+  custom_webhook: Joi.string().uri().allow('').optional(),
   filter_bots: Joi.boolean().optional(),
   filter_search_engines: Joi.boolean().optional(),
   filter_social_media: Joi.boolean().optional(),
-  alternative_domain: Joi.string().optional(),
-  custom_landing_page: Joi.string().uri().optional()
+  alternative_domain: Joi.string().allow('').optional(),
+  custom_landing_page: Joi.string().uri().allow('').optional()
 }).options({
   allowUnknown: false,
   stripUnknown: true
