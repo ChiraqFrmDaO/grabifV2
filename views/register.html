@@ -1,12 +1,13 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Registratie</title>
+  <title>Register - LinkSpy</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@600;800&display=swap');
-
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
@@ -16,9 +17,12 @@
       --text:     #dde2ef;
       --muted:    #64748b;
       --accent:   #38bdf8;
+      --accent-glow: rgba(56, 189, 248, 0.3);
       --green:    #22c55e;
+      --green-glow: rgba(34, 197, 94, 0.3);
+      --purple:   #a855f7;
+      --purple-glow: rgba(168, 85, 247, 0.3);
       --red:      #ef4444;
-      --radius:   18px;
     }
 
     body {
@@ -29,122 +33,275 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 24px 20px;
+      padding: 20px;
+      overflow-x: hidden;
     }
-    .card {
-      background: var(--surface);
-      padding: 40px;
-      border-radius: var(--radius);
+
+    /* Animated Background */
+    .bg-gradient {
+      position: fixed;
+      top: 0;
+      left: 0;
       width: 100%;
-      max-width: 400px;
-      border: 1px solid var(--border);
+      height: 100%;
+      background: 
+        radial-gradient(ellipse at 20% 20%, var(--accent-glow) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 80%, var(--purple-glow) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 50%, var(--green-glow) 0%, transparent 50%);
+      animation: gradientShift 15s ease-in-out infinite;
+      z-index: -1;
     }
-    h1 {
+
+    @keyframes gradientShift {
+      0%, 100% { opacity: 0.5; transform: scale(1); }
+      50% { opacity: 0.8; transform: scale(1.1); }
+    }
+
+    .auth-container {
+      width: 100%;
+      max-width: 420px;
+    }
+
+    .auth-card {
+      background: rgba(13, 15, 29, 0.8);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 48px 40px;
+      animation: fadeInUp 0.8s ease-out;
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .logo {
       font-family: 'Syne', sans-serif;
-      font-size: 1.8rem;
+      font-size: 2rem;
       font-weight: 800;
-      letter-spacing: 0.1em;
       background: linear-gradient(90deg, #00ff88, #00ccff);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
-      margin-bottom: 30px;
+      letter-spacing: 0.1em;
       text-align: center;
+      margin-bottom: 8px;
     }
-    .field { margin-bottom: 20px; }
-    label { display: block; margin-bottom: 8px; color: var(--muted); font-size: 0.9rem; }
+
+    .subtitle {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-bottom: 32px;
+    }
+
+    .field {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
     input {
       width: 100%;
-      padding: 12px 16px;
-      background: rgba(255,255,255,0.03);
+      padding: 14px 16px;
+      background: rgba(255,255,255,0.05);
       border: 1px solid var(--border);
       border-radius: 12px;
       color: var(--text);
-      font-size: 14px;
       font-family: 'JetBrains Mono', monospace;
-      transition: border-color 0.2s;
+      font-size: 0.9rem;
+      outline: none;
+      transition: all 0.3s;
     }
-    input:focus { outline: none; border-color: var(--accent); }
-    button {
+
+    input:focus {
+      border-color: var(--accent);
+      background: rgba(255,255,255,0.08);
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+
+    .btn {
       width: 100%;
-      padding: 14px;
-      background: var(--accent);
-      color: #0b1219;
-      border: none;
+      padding: 14px 20px;
       border-radius: 12px;
-      font-size: 14px;
+      border: none;
+      font-family: 'Syne', sans-serif;
+      font-size: 0.95rem;
       font-weight: 600;
-      font-family: 'JetBrains Mono', monospace;
       cursor: pointer;
-      transition: opacity 0.2s;
+      transition: all 0.3s;
+      letter-spacing: 0.05em;
+      background: linear-gradient(135deg, var(--accent), var(--purple));
+      color: #0b1219;
+      box-shadow: 0 4px 20px var(--accent-glow);
     }
-    button:hover { opacity: 0.9; }
-    .error { color: var(--red); margin-top: 15px; text-align: center; font-size: 0.9rem; }
-    .success { color: var(--green); margin-top: 15px; text-align: center; font-size: 0.9rem; }
+
+    .btn:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px var(--accent-glow);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .message {
+      margin-top: 20px;
+      padding: 14px 16px;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      text-align: center;
+      display: none;
+    }
+
+    .message.error {
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.3);
+      color: var(--red);
+      display: block;
+      animation: shake 0.3s;
+    }
+
+    .message.success {
+      background: rgba(34,197,94,0.1);
+      border: 1px solid rgba(34,197,94,0.3);
+      color: var(--green);
+      display: block;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-6px); }
+      75% { transform: translateX(6px); }
+    }
+
+    .footer-link {
+      text-align: center;
+      margin-top: 24px;
+      font-size: 0.85rem;
+    }
+
+    .footer-link a {
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.3s;
+    }
+
+    .footer-link a:hover {
+      color: var(--accent);
+    }
+
+    .footer-link span {
+      color: var(--accent);
+    }
+
     .lang-selector {
-      position: absolute;
+      position: fixed;
       top: 20px;
       right: 20px;
-      background: rgba(255,255,255,.05);
+      background: rgba(255,255,255,0.05);
       border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 6px 12px;
-      font-size: 0.75rem;
+      border-radius: 10px;
+      padding: 8px 14px;
+      font-size: 0.85rem;
       cursor: pointer;
       color: var(--muted);
-      transition: all 0.2s;
+      transition: all 0.3s;
       font-family: 'JetBrains Mono', monospace;
     }
+
     .lang-selector:hover {
       color: var(--text);
       border-color: var(--accent);
     }
+
+    @media (max-width: 480px) {
+      .auth-card {
+        padding: 32px 24px;
+      }
+    }
   </style>
 </head>
 <body>
-  <button id="langBtn" class="lang-selector">🌐 NL</button>
+  <div class="bg-gradient"></div>
+  <button id="langBtn" class="lang-selector">🌐 EN</button>
 
-  <div class="card">
-    <h1 data-i18n="title">Registratie</h1>
-    <div class="field">
-      <label data-i18n="username">Gebruikersnaam</label>
-      <input type="text" id="username">
+  <div class="auth-container">
+    <div class="auth-card">
+      <div class="logo">LINKSPY</div>
+      <p class="subtitle" data-i18n="subtitle">Create your account</p>
+
+      <div class="field">
+        <label for="username" data-i18n="username">Username</label>
+        <input type="text" id="username" autocomplete="username">
+      </div>
+
+      <div class="field">
+        <label for="email" data-i18n="email">Email</label>
+        <input type="email" id="email" autocomplete="email">
+      </div>
+
+      <div class="field">
+        <label for="password" data-i18n="password">Password</label>
+        <input type="password" id="password" autocomplete="new-password">
+      </div>
+
+      <div class="field">
+        <label for="inviteToken" data-i18n="inviteToken">Invite Token</label>
+        <input type="text" id="inviteToken">
+      </div>
+
+      <button onclick="register()" class="btn" data-i18n="register">Create Account</button>
+      <div id="message" class="message"></div>
+
+      <div class="footer-link">
+        <a href="/login">
+          <span data-i18n="hasAccount">Already have an account?</span> <span data-i18n="login">Sign in</span>
+        </a>
+      </div>
     </div>
-    <div class="field">
-      <label data-i18n="email">Email</label>
-      <input type="email" id="email">
-    </div>
-    <div class="field">
-      <label data-i18n="password">Wachtwoord</label>
-      <input type="password" id="password">
-    </div>
-    <div class="field">
-      <label data-i18n="inviteToken">Invite Token</label>
-      <input type="text" id="inviteToken">
-    </div>
-    <button onclick="register()" data-i18n="register">Registreren</button>
-    <div id="message"></div>
   </div>
+
   <script>
     const translations = {
       nl: {
-        title: 'Registratie',
+        subtitle: 'Maak je account aan',
         username: 'Gebruikersnaam',
         email: 'Email',
         password: 'Wachtwoord',
         inviteToken: 'Invite Token',
-        register: 'Registreren',
+        register: 'Account Aanmaken',
+        hasAccount: 'Heb je al een account?',
+        login: 'Inloggen',
         fillAll: 'Vul alle velden in.',
         registerSuccess: 'Registratie succesvol!',
         registerFailed: 'Registratie mislukt.',
         networkError: 'Netwerkfout bij registratie.'
       },
       en: {
-        title: 'Registration',
+        subtitle: 'Create your account',
         username: 'Username',
         email: 'Email',
         password: 'Password',
         inviteToken: 'Invite Token',
-        register: 'Register',
+        register: 'Create Account',
+        hasAccount: 'Already have an account?',
+        login: 'Sign in',
         fillAll: 'Please fill all fields.',
         registerSuccess: 'Registration successful!',
         registerFailed: 'Registration failed.',
@@ -152,7 +309,7 @@
       }
     };
 
-    let currentLang = localStorage.getItem('lang') || 'nl';
+    let currentLang = localStorage.getItem('lang') || 'en';
 
     function setLanguage(lang) {
       currentLang = lang;
@@ -179,7 +336,7 @@
       const msg = document.getElementById('message');
 
       if (!username || !email || !password || !inviteToken) {
-        msg.className = 'error';
+        msg.className = 'message error';
         msg.textContent = t('fillAll');
         return;
       }
@@ -193,15 +350,15 @@
         const data = await res.json();
 
         if (data.success) {
-          msg.className = 'success';
+          msg.className = 'message success';
           msg.textContent = data.message;
           setTimeout(() => window.location.href = '/login', 2000);
         } else {
-          msg.className = 'error';
+          msg.className = 'message error';
           msg.textContent = data.error;
         }
       } catch (err) {
-        msg.className = 'error';
+        msg.className = 'message error';
         msg.textContent = t('registerFailed');
       }
     }

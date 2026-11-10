@@ -1,12 +1,13 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>𝐑𝟑𝐃𝐈𝐑𝟑𝐂𝐓 — Login</title>
+  <title>Login - LinkSpy</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@600;800&display=swap');
-
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
@@ -16,6 +17,11 @@
       --text:     #dde2ef;
       --muted:    #64748b;
       --accent:   #38bdf8;
+      --accent-glow: rgba(56, 189, 248, 0.3);
+      --green:    #22c55e;
+      --green-glow: rgba(34, 197, 94, 0.3);
+      --purple:   #a855f7;
+      --purple-glow: rgba(168, 85, 247, 0.3);
       --red:      #ef4444;
     }
 
@@ -28,123 +34,139 @@
       align-items: center;
       justify-content: center;
       padding: 20px;
-      overflow: hidden;
+      overflow-x: hidden;
     }
 
-    body::before {
-      content: '';
+    /* Animated Background */
+    .bg-gradient {
       position: fixed;
-      inset: -40%;
-      background:
-        radial-gradient(ellipse at 25% 35%, rgba(0,255,136,.08) 0%, transparent 55%),
-        radial-gradient(ellipse at 75% 65%, rgba(0,204,255,.06) 0%, transparent 55%);
-      animation: breathe 8s ease-in-out infinite alternate;
-      pointer-events: none;
-    }
-    @keyframes breathe {
-      from { opacity: .6; transform: scale(1); }
-      to   { opacity: .9; transform: scale(1.05); }
-    }
-
-    .login-box {
-      position: relative;
+      top: 0;
+      left: 0;
       width: 100%;
-      max-width: 380px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      padding: 40px;
-      box-shadow: 0 32px 80px rgba(0,0,0,.5);
-      animation: slideUp .6s cubic-bezier(.22,1,.36,1) both;
-    }
-    @keyframes slideUp {
-      from { opacity: 0; transform: translateY(30px); }
-      to   { opacity: 1; transform: translateY(0); }
+      height: 100%;
+      background: 
+        radial-gradient(ellipse at 20% 20%, var(--accent-glow) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 80%, var(--purple-glow) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 50%, var(--green-glow) 0%, transparent 50%);
+      animation: gradientShift 15s ease-in-out infinite;
+      z-index: -1;
     }
 
-    h1 {
+    @keyframes gradientShift {
+      0%, 100% { opacity: 0.5; transform: scale(1); }
+      50% { opacity: 0.8; transform: scale(1.1); }
+    }
+
+    .auth-container {
+      width: 100%;
+      max-width: 420px;
+    }
+
+    .auth-card {
+      background: rgba(13, 15, 29, 0.8);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 48px 40px;
+      animation: fadeInUp 0.8s ease-out;
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .logo {
       font-family: 'Syne', sans-serif;
-      font-size: 1.8rem;
+      font-size: 2rem;
       font-weight: 800;
-      letter-spacing: .08em;
       background: linear-gradient(90deg, #00ff88, #00ccff);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
-      margin-bottom: 8px;
+      letter-spacing: 0.1em;
       text-align: center;
+      margin-bottom: 8px;
     }
 
     .subtitle {
       text-align: center;
-      font-size: 0.85rem;
       color: var(--muted);
+      font-size: 0.9rem;
       margin-bottom: 32px;
-      letter-spacing: .06em;
     }
 
     .field {
-      margin-bottom: 18px;
+      margin-bottom: 20px;
     }
 
     label {
       display: block;
-      font-size: 0.75rem;
+      font-size: 0.8rem;
       color: var(--muted);
-      margin-bottom: 6px;
-      letter-spacing: .05em;
+      margin-bottom: 8px;
+      letter-spacing: 0.05em;
       text-transform: uppercase;
     }
 
     input {
       width: 100%;
-      padding: 12px 14px;
-      background: rgba(255,255,255,.04);
+      padding: 14px 16px;
+      background: rgba(255,255,255,0.05);
       border: 1px solid var(--border);
       border-radius: 12px;
       color: var(--text);
       font-family: 'JetBrains Mono', monospace;
-      font-size: 0.88rem;
+      font-size: 0.9rem;
       outline: none;
-      transition: border-color .15s, background .15s;
+      transition: all 0.3s;
     }
 
     input:focus {
       border-color: var(--accent);
-      background: rgba(255,255,255,.06);
+      background: rgba(255,255,255,0.08);
+      box-shadow: 0 0 20px var(--accent-glow);
     }
 
     .btn {
       width: 100%;
-      padding: 12px 16px;
-      border-radius: 11px;
+      padding: 14px 20px;
+      border-radius: 12px;
       border: none;
       font-family: 'Syne', sans-serif;
-      font-size: 0.9rem;
+      font-size: 0.95rem;
       font-weight: 600;
       cursor: pointer;
-      transition: opacity .15s, transform .12s;
-      letter-spacing: .05em;
-      background: linear-gradient(135deg, #00ff88, #00ccff);
+      transition: all 0.3s;
+      letter-spacing: 0.05em;
+      background: linear-gradient(135deg, var(--accent), var(--purple));
       color: #0b1219;
+      box-shadow: 0 4px 20px var(--accent-glow);
     }
 
     .btn:hover:not(:disabled) {
-      opacity: .9;
-      transform: translateY(-1px);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px var(--accent-glow);
     }
 
     .btn:disabled {
-      opacity: .45;
+      opacity: 0.5;
       cursor: not-allowed;
+      transform: none;
     }
 
     .error {
       display: none;
-      margin-bottom: 16px;
-      padding: 12px 14px;
-      background: rgba(239,68,68,.1);
-      border: 1px solid rgba(239,68,68,.3);
-      border-radius: 10px;
+      margin-bottom: 20px;
+      padding: 14px 16px;
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 12px;
       font-size: 0.85rem;
       color: var(--red);
       text-align: center;
@@ -152,70 +174,99 @@
 
     .error.show {
       display: block;
-      animation: shake .3s;
+      animation: shake 0.3s;
     }
 
     @keyframes shake {
       0%, 100% { transform: translateX(0); }
-      25% { transform: translateX(-4px); }
-      75% { transform: translateX(4px); }
+      25% { transform: translateX(-6px); }
+      75% { transform: translateX(6px); }
+    }
+
+    .footer-link {
+      text-align: center;
+      margin-top: 24px;
+      font-size: 0.85rem;
+    }
+
+    .footer-link a {
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.3s;
+    }
+
+    .footer-link a:hover {
+      color: var(--accent);
+    }
+
+    .footer-link span {
+      color: var(--accent);
     }
 
     .lang-selector {
-      position: absolute;
+      position: fixed;
       top: 20px;
       right: 20px;
-      background: rgba(255,255,255,.05);
+      background: rgba(255,255,255,0.05);
       border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 6px 12px;
-      font-size: 0.75rem;
+      border-radius: 10px;
+      padding: 8px 14px;
+      font-size: 0.85rem;
       cursor: pointer;
       color: var(--muted);
-      transition: all 0.2s;
+      transition: all 0.3s;
       font-family: 'JetBrains Mono', monospace;
     }
+
     .lang-selector:hover {
       color: var(--text);
       border-color: var(--accent);
     }
+
+    @media (max-width: 480px) {
+      .auth-card {
+        padding: 32px 24px;
+      }
+    }
   </style>
 </head>
 <body>
-  <button id="langBtn" class="lang-selector">🌐 NL</button>
+  <div class="bg-gradient"></div>
+  <button id="langBtn" class="lang-selector">🌐 EN</button>
 
-  <div class="login-box">
-    <h1>R3DIR3CT</h1>
-    <p class="subtitle" data-i18n="subtitle">Dashboard Login</p>
+  <div class="auth-container">
+    <div class="auth-card">
+      <div class="logo">LINKSPY</div>
+      <p class="subtitle" data-i18n="subtitle">Sign in to your account</p>
 
-    <div id="error" class="error"></div>
+      <div id="error" class="error"></div>
 
-    <form id="loginForm" action="/api/login" method="post">
-      <div class="field">
-        <label for="username" data-i18n="username">Username</label>
-        <input type="text" id="username" name="username" autocomplete="username" required autofocus>
+      <form id="loginForm" action="/api/login" method="post">
+        <div class="field">
+          <label for="username" data-i18n="username">Username</label>
+          <input type="text" id="username" name="username" autocomplete="username" required autofocus>
+        </div>
+
+        <div class="field">
+          <label for="password" data-i18n="password">Password</label>
+          <input type="password" id="password" name="password" autocomplete="current-password" required>
+        </div>
+
+        <button type="submit" class="btn" id="submitBtn" data-i18n="login">Sign In</button>
+      </form>
+
+      <div class="footer-link">
+        <a href="/register">
+          <span data-i18n="noAccount">Don't have an account?</span> <span data-i18n="register">Sign up</span>
+        </a>
       </div>
-
-      <div class="field">
-        <label for="password" data-i18n="password">Password</label>
-        <input type="password" id="password" name="password" autocomplete="current-password" required>
-      </div>
-
-      <button type="submit" class="btn" id="submitBtn" data-i18n="login">Login</button>
-    </form>
-
-    <div style="text-align: center; margin-top: 20px;">
-      <a href="/register" style="color: var(--muted); font-size: 0.85rem; text-decoration: none; transition: color 0.2s;">
-        <span data-i18n="noAccount">Nog geen account?</span> <span style="color: var(--accent);" data-i18n="register">Registreren</span>
-      </a>
     </div>
   </div>
 
   <script>
-    // ── Translations ─────────────────────────────────────────────────────────
     const translations = {
       nl: {
-        subtitle: 'Dashboard Login',
+        subtitle: 'Log in op je account',
         username: 'Gebruikersnaam',
         password: 'Wachtwoord',
         login: 'Inloggen',
@@ -226,19 +277,19 @@
         loading: 'Bezig...'
       },
       en: {
-        subtitle: 'Dashboard Login',
+        subtitle: 'Sign in to your account',
         username: 'Username',
         password: 'Password',
-        login: 'Login',
+        login: 'Sign In',
         noAccount: "Don't have an account?",
-        register: 'Register',
+        register: 'Sign up',
         loginFailed: 'Invalid username or password.',
         networkError: 'Network error occurred.',
         loading: 'Loading...'
       }
     };
 
-    let currentLang = localStorage.getItem('lang') || 'nl';
+    let currentLang = localStorage.getItem('lang') || 'en';
 
     function setLanguage(lang) {
       currentLang = lang;
