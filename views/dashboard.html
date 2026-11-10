@@ -465,6 +465,39 @@
     </div>
   </div>
 
+  <!-- API Token Section -->
+  <div class="section">
+    <p class="section-title" data-i18n="apiTokenSection">API Token</p>
+    <div id="apiTokenSection" style="display:none;">
+      <div class="field">
+        <label data-i18n="currentApiToken">Current API Token:</label>
+        <input type="text" id="apiTokenDisplay" readonly style="font-family:monospace;">
+      </div>
+      <div style="margin-top:12px;">
+        <button id="copyApiTokenBtn" class="btn btn-secondary btn-sm" data-i18n="copyToken">📋 Copy Token</button>
+        <button id="regenerateApiTokenBtn" class="btn btn-danger btn-sm" data-i18n="regenerateToken">🔄 Regenerate</button>
+      </div>
+    </div>
+    <div id="noApiToken" style="color:var(--muted);padding:12px;font-size:.85rem;" data-i18n="noApiToken">
+      No API token generated yet.
+    </div>
+    <button id="generateApiTokenBtn" class="btn btn-primary" style="margin-top:12px;" data-i18n="newApiToken">+ Generate API Token</button>
+    
+    <!-- API Documentation -->
+    <div style="margin-top:20px; padding:16px; background:rgba(255,255,255,.03); border-radius:12px; border:1px solid var(--border);">
+      <p style="font-size:0.8rem; color:var(--muted); margin-bottom:8px;" data-i18n="apiDocsTitle">API Documentation:</p>
+      <pre style="font-size:0.75rem; color:var(--text); overflow-x:auto; white-space:pre-wrap;"><code data-i18n="apiDocsText"># Create Tracker
+curl -X POST https://yourdomain.com/api/v1/create-tracker \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"My Tracker","destination_url":"https://example.com"}'
+
+# Get Logs
+curl https://yourdomain.com/api/v1/logs/TRACKER_ID \
+  -H "Authorization: Bearer YOUR_TOKEN"</code></pre>
+    </div>
+  </div>
+
 </div><!-- /container -->
 
 <!-- Detail modal -->
@@ -558,7 +591,18 @@
       forThisTracker: 'voor deze tracker.',
       logsButton: '📊 Logs',
       placeholderName: 'bijv. Instagram campagne',
-      copyFeedback: '✓ Gekopieerd'
+      copyFeedback: '✓ Gekopieerd',
+      apiTokenSection: 'API Token',
+      currentApiToken: 'Current API Token:',
+      copyToken: '📋 Copy Token',
+      regenerateToken: '🔄 Regenerate',
+      noApiToken: 'No API token generated yet.',
+      newApiToken: '+ Generate API Token',
+      apiDocsTitle: 'API Documentation:',
+      apiDocsText: '# Create Tracker\ncurl -X POST https://yourdomain.com/api/v1/create-tracker \\\n  -H "Authorization: Bearer YOUR_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d \'{"name":"My Tracker","destination_url":"https://example.com"}\'\n\n# Get Logs\ncurl https://yourdomain.com/api/v1/logs/TRACKER_ID \\\n  -H "Authorization: Bearer YOUR_TOKEN"',
+      apiTokenGenerated: 'API token generated!',
+      apiTokenFailed: 'API token generation failed.',
+      apiTokenCopied: 'API token copied!'
     },
     en: {
       dashboardSubtitle: 'IP Tracking Dashboard',
@@ -631,7 +675,18 @@
       forThisTracker: 'for this tracker.',
       logsButton: '📊 Logs',
       placeholderName: 'e.g. Instagram campaign',
-      copyFeedback: '✓ Copied'
+      copyFeedback: '✓ Copied',
+      apiTokenSection: 'API Token',
+      currentApiToken: 'Current API Token:',
+      copyToken: '📋 Copy Token',
+      regenerateToken: '🔄 Regenerate',
+      noApiToken: 'No API token generated yet.',
+      newApiToken: '+ Generate API Token',
+      apiDocsTitle: 'API Documentation:',
+      apiDocsText: '# Create Tracker\ncurl -X POST https://yourdomain.com/api/v1/create-tracker \\\n  -H "Authorization: Bearer YOUR_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d \'{"name":"My Tracker","destination_url":"https://example.com"}\'\n\n# Get Logs\ncurl https://yourdomain.com/api/v1/logs/TRACKER_ID \\\n  -H "Authorization: Bearer YOUR_TOKEN"',
+      apiTokenGenerated: 'API token generated!',
+      apiTokenFailed: 'API token generation failed.',
+      apiTokenCopied: 'API token copied!'
     }
   };
 
@@ -658,6 +713,9 @@
     document.getElementById('copyBtn').textContent = t('copy');
     document.getElementById('refreshBtn').textContent = '↻ ' + t('refresh');
     document.getElementById('copyFeedback').textContent = t('copyFeedback');
+    document.getElementById('generateApiTokenBtn').textContent = t('newApiToken');
+    document.getElementById('copyApiTokenBtn').textContent = t('copyToken');
+    document.getElementById('regenerateApiTokenBtn').textContent = t('regenerateToken');
 
     // Re-render dynamic content
     loadTrackersList();
@@ -706,6 +764,9 @@
   document.getElementById('copyBtn').addEventListener('click', copyLink);
   document.getElementById('refreshBtn').addEventListener('click', loadLogs);
   document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+  document.getElementById('generateApiTokenBtn').addEventListener('click', generateApiToken);
+  document.getElementById('copyApiTokenBtn').addEventListener('click', copyApiToken);
+  document.getElementById('regenerateApiTokenBtn').addEventListener('click', generateApiToken);
 
   // Initialize language on page load
   setLanguage(currentLang);
@@ -1167,6 +1228,57 @@ async function loadTrackersList() {
     if (currentMap) { currentMap.remove(); currentMap = null; }
   }
 
+  async function generateApiToken() {
+    try {
+      const res = await fetch('/api/api-token', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        document.getElementById('apiTokenDisplay').value = data.api_token;
+        document.getElementById('apiTokenSection').style.display = '';
+        document.getElementById('noApiToken').style.display = 'none';
+        document.getElementById('generateApiTokenBtn').style.display = 'none';
+        showToast(t('apiTokenGenerated'), 'success');
+      } else {
+        showToast(t('apiTokenFailed'), 'error');
+      }
+    } catch (err) {
+      showToast(t('apiTokenFailed'), 'error');
+    }
+  }
+
+  async function copyApiToken() {
+    const token = document.getElementById('apiTokenDisplay').value;
+    if (token) {
+      navigator.clipboard.writeText(token);
+      showToast(t('apiTokenCopied'), 'success');
+    }
+  }
+
+  async function loadApiToken() {
+    try {
+      const res = await fetch('/api/user', { credentials: 'same-origin' });
+      const data = await res.json();
+
+      if (data.authenticated && data.api_token) {
+        document.getElementById('apiTokenDisplay').value = data.api_token;
+        document.getElementById('apiTokenSection').style.display = '';
+        document.getElementById('noApiToken').style.display = 'none';
+        document.getElementById('generateApiTokenBtn').style.display = 'none';
+      } else {
+        document.getElementById('noApiToken').style.display = '';
+        document.getElementById('apiTokenSection').style.display = 'none';
+        document.getElementById('generateApiTokenBtn').style.display = '';
+      }
+    } catch (err) {
+      console.error('Failed to load API token status:', err);
+    }
+  }
+
   // ── Tracker verwijderen ────────────────────────────────────────────────────
   async function deleteTracker(trackerId, trackerName) {
     if (!confirm(`Tracker "${trackerName}" verwijderen?\nDeze actie verwijdert ook de bijbehorende logs.`)) return;
@@ -1246,6 +1358,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadSummary();
   loadTrackersList();
   loadLogs();
+  loadApiToken();
 });
 </script>
 </body>
