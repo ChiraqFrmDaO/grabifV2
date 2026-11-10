@@ -1252,8 +1252,13 @@ async function getSummary() {
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 
-// Homepagina uit views/index.html
+// Landing page
 app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'views', 'landing.html'));
+});
+
+// Legacy index page (accessible via /index)
+app.get('/index', (req, res) => {
   res.sendFile(path.join(__dirname, 'views', 'index.html'));
 });
 
