@@ -352,11 +352,11 @@
 
     <!-- Stats -->
     <div class="section">
-      <p class="section-title">Overzicht</p>
+      <p class="section-title" data-i18n="overview">Overzicht</p>
       <div class="stats-grid">
-        <div class="stat-card"><strong id="trackerCount">—</strong><span>Trackers</span></div>
-        <div class="stat-card"><strong id="visitCount">—</strong><span>Bezoeken</span></div>
-        <div class="stat-card"><strong id="uniqueCount">—</strong><span>Unieke IP's</span></div>
+        <div class="stat-card"><strong id="trackerCount">—</strong><span data-i18n="totalTrackers">Trackers</span></div>
+        <div class="stat-card"><strong id="visitCount">—</strong><span data-i18n="totalClicks">Bezoeken</span></div>
+        <div class="stat-card"><strong id="uniqueCount">—</strong><span data-i18n="uniqueIPs">Unieke IP's</span></div>
       </div>
     </div>
 
@@ -453,9 +453,9 @@
       <table id="logsTable">
         <thead>
           <tr>
-            <th data-i18n="name">Naam</th><th>Tijd</th><th>Tracker ID</th>
-            <th>IP</th><th>Land</th><th>Stad</th>
-            <th>Browser / OS</th><th data-i18n="securityFlags">Security</th><th data-i18n="detailsLabel">Actie</th>
+            <th data-i18n="name">Naam</th><th data-i18n="time">Tijd</th><th>Tracker ID</th>
+            <th>IP</th><th data-i18n="country">Land</th><th data-i18n="city">Stad</th>
+            <th data-i18n="browserOs">Browser / OS</th><th data-i18n="securityFlags">Security</th><th data-i18n="action">Actie</th>
           </tr>
         </thead>
         <tbody id="logsBody">
@@ -548,7 +548,13 @@
       vpnDetected: '🔒 VPN',
       proxyDetected: '🛡️ Proxy',
       torDetected: '🧅 Tor',
-      dcDetected: '🏢 DC'
+      dcDetected: '🏢 DC',
+      time: 'Tijd',
+      country: 'Land',
+      city: 'Stad',
+      browserOs: 'Browser / OS',
+      action: 'Actie',
+      noLogsAvailable: 'Nog geen logs beschikbaar.'
     },
     en: {
       dashboardSubtitle: 'IP Tracking Dashboard',
@@ -611,7 +617,13 @@
       vpnDetected: '🔒 VPN',
       proxyDetected: '🛡️ Proxy',
       torDetected: '🧅 Tor',
-      dcDetected: '🏢 DC'
+      dcDetected: '🏢 DC',
+      time: 'Time',
+      country: 'Country',
+      city: 'City',
+      browserOs: 'Browser / OS',
+      action: 'Action',
+      noLogsAvailable: 'No logs available yet.'
     }
   };
 
@@ -629,6 +641,11 @@
         el.textContent = translations[lang][key];
       }
     });
+
+    // Update button text that was hardcoded
+    document.getElementById('generateBtn').textContent = t('linkCreate');
+    document.getElementById('copyBtn').textContent = t('copy');
+    document.getElementById('refreshBtn').textContent = '↻ ' + t('refresh');
 
     // Re-render dynamic content
     loadTrackersList();
