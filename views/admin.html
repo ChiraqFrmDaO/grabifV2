@@ -358,7 +358,13 @@
       inviteDeleteFailed: 'Invite verwijderen mislukt.',
       inviteDeleteNetworkError: 'Netwerkfout bij invite verwijderen.',
       confirmLogout: 'Weet je zeker dat je wilt uitloggen?',
-      logoutError: 'Fout bij uitloggen.'
+      logoutError: 'Fout bij uitloggen.',
+      resetPassword: '🔒 Reset Wachtwoord',
+      enterNewPassword: 'Voer nieuw wachtwoord in (minimaal 6 tekens):',
+      passwordTooShort: 'Wachtwoord moet minimaal 6 tekens zijn.',
+      passwordResetSuccess: 'Wachtwoord succesvol gereset!',
+      passwordResetFailed: 'Wachtwoord reset mislukt.',
+      passwordResetNetworkError: 'Netwerkfout bij wachtwoord reset.'
     },
     en: {
       adminPanel: 'Admin Panel',
@@ -651,13 +657,45 @@
         toggleApiAccessBtn.textContent = user.api_access ? t('revokeApiAccess') : t('grantApiAccess');
         toggleApiAccessBtn.onclick = () => toggleApiAccess(user.username, user.api_access);
 
+        const resetPasswordBtn = document.createElement('button');
+        resetPasswordBtn.className = 'btn btn-danger btn-sm';
+        resetPasswordBtn.textContent = t('resetPassword');
+        resetPasswordBtn.onclick = () => resetUserPassword(user.username);
+
         actions.appendChild(toggleRoleBtn);
         actions.appendChild(toggleApiAccessBtn);
+        actions.appendChild(resetPasswordBtn);
         card.append(username, email, role, actions);
         container.appendChild(card);
       });
     } catch (err) {
       console.error('Users laden mislukt:', err);
+    }
+  }
+
+  async function resetUserPassword(username) {
+    const newPassword = prompt(t('enterNewPassword'));
+    if (!newPassword || newPassword.length < 6) {
+      showToast(t('passwordTooShort'), 'error');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/users/reset-password', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, newPassword })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        showToast(t('passwordResetSuccess'), 'success');
+      } else {
+        showToast(t('passwordResetFailed'), 'error');
+      }
+    } catch (err) {
+      showToast(t('passwordResetNetworkError'), 'error');
     }
   }
 

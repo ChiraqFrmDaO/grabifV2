@@ -2047,6 +2047,33 @@ app.post('/api/users/api-access', requireAdmin, async (req, res) => {
   }
 });
 
+// Reset user password (admin only)
+app.post('/api/users/reset-password', requireAdmin, async (req, res) => {
+  const { username, newPassword } = req.body;
+
+  if (!username || !newPassword || newPassword.length < 6) {
+    return res.status(400).json({ error: 'Invalid request' });
+  }
+
+  try {
+    const bcrypt = require('bcrypt');
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    if (useDb) {
+      if (usePostgres) {
+        await pool.query(`UPDATE users SET password_hash = $1 WHERE username = $2`, [passwordHash, username]);
+      } else {
+        const stmt = db.prepare(`UPDATE users SET password_hash = ? WHERE username = ?`);
+        stmt.run(passwordHash, username);
+      }
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ error: 'Failed to reset password' });
+  }
+});
+
 // Registration with invite token
 app.post('/api/register', async (req, res) => {
   const { username, email, password, inviteToken } = req.body;
