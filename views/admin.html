@@ -326,6 +326,9 @@
       makeAdmin: '↑ Make Admin',
       makeUser: '↓ Make User',
       token: 'Token',
+      status: 'Status',
+      statusPending: 'Pending',
+      statusUsed: 'Used',
       created: 'Aangemaakt',
       copyInvite: '📋 Kopieer',
       copyToken: '📋 Copy Token',
@@ -376,6 +379,9 @@
       makeAdmin: '↑ Make Admin',
       makeUser: '↓ Make User',
       token: 'Token',
+      status: 'Status',
+      statusPending: 'Pending',
+      statusUsed: 'Used',
       created: 'Created',
       copyInvite: '📋 Copy',
       copyToken: '📋 Copy Token',
@@ -528,6 +534,11 @@
         token.className = 'meta';
         token.textContent = `${t('token')}: ${invite.invite_token}`;
 
+        const status = document.createElement('div');
+        status.className = 'meta';
+        const isPending = invite.username.startsWith('pending');
+        status.innerHTML = `${t('status')}: <span style="color:${isPending ? 'var(--accent)' : 'var(--green)'};font-weight:600;">${isPending ? t('statusPending') : t('statusUsed')}</span>`;
+
         const date = document.createElement('div');
         date.className = 'meta';
         const locale = currentLang === 'nl' ? 'nl-NL' : 'en-US';
@@ -569,9 +580,13 @@
           }
         };
 
+        // Only show delete button for pending invites
+        if (isPending) {
+          actions.appendChild(deleteBtn);
+        }
+
         actions.appendChild(copyBtn);
-        actions.appendChild(deleteBtn);
-        card.append(token, date, actions);
+        card.append(token, status, date, actions);
         container.appendChild(card);
       });
     } catch (err) {

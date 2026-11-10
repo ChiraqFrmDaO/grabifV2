@@ -1945,10 +1945,10 @@ app.get('/api/invites', requireAdmin, async (req, res) => {
     let invites = [];
     if (useDb) {
       if (usePostgres) {
-        const { rows } = await pool.query(`SELECT invite_token, created_at FROM users WHERE invite_token IS NOT NULL`);
+        const { rows } = await pool.query(`SELECT invite_token, created_at, username FROM users WHERE invite_token IS NOT NULL`);
         invites = rows;
       } else {
-        const stmt = db.prepare(`SELECT invite_token, created_at FROM users WHERE invite_token IS NOT NULL`);
+        const stmt = db.prepare(`SELECT invite_token, created_at, username FROM users WHERE invite_token IS NOT NULL`);
         invites = stmt.all();
       }
     }
