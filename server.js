@@ -1959,6 +1959,26 @@ app.get('/api/invites', requireAdmin, async (req, res) => {
   }
 });
 
+// Delete invite
+app.delete('/api/invites/:token', requireAdmin, async (req, res) => {
+  const { token } = req.params;
+
+  try {
+    if (useDb) {
+      if (usePostgres) {
+        await pool.query(`DELETE FROM users WHERE invite_token = $1 AND username LIKE 'pending%'`, [token]);
+      } else {
+        const stmt = db.prepare(`DELETE FROM users WHERE invite_token = ? AND username LIKE 'pending%'`);
+        stmt.run(token);
+      }
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete invite error:', error);
+    res.status(500).json({ error: 'Failed to delete invite' });
+  }
+});
+
 // List users
 app.get('/api/users', requireAdmin, async (req, res) => {
   try {
