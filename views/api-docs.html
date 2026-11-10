@@ -455,10 +455,142 @@ print(response.json())</code></pre>
   </div>
 
   <div class="section">
+    <h2>Interactive API Tester</h2>
+    <p>Test the API directly from your browser. Enter your API token and try the endpoints.</p>
+
+    <div style="margin: 16px 0;">
+      <label style="display: block; margin-bottom: 8px; color: var(--muted);">API Token:</label>
+      <input type="password" id="apiTokenInput" placeholder="Enter your API token..." 
+             style="width: 100%; padding: 10px; background: rgba(0,0,0,.3); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 0.9rem;">
+    </div>
+
+    <div style="margin: 16px 0;">
+      <label style="display: block; margin-bottom: 8px; color: var(--muted);">Endpoint:</label>
+      <select id="endpointSelect" style="width: 100%; padding: 10px; background: rgba(0,0,0,.3); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 0.9rem;">
+        <option value="create-tracker">POST /create-tracker</option>
+        <option value="logs">GET /logs/:tracker_id</option>
+      </select>
+    </div>
+
+    <div id="createTrackerFields" style="margin: 16px 0;">
+      <label style="display: block; margin-bottom: 8px; color: var(--muted);">Tracker Name:</label>
+      <input type="text" id="trackerNameInput" placeholder="My Test Tracker" 
+             style="width: 100%; padding: 10px; background: rgba(0,0,0,.3); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; margin-bottom: 12px;">
+      
+      <label style="display: block; margin-bottom: 8px; color: var(--muted);">Destination URL:</label>
+      <input type="text" id="destinationUrlInput" placeholder="https://example.com" 
+             style="width: 100%; padding: 10px; background: rgba(0,0,0,.3); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 0.9rem;">
+    </div>
+
+    <div id="logsFields" style="margin: 16px 0; display: none;">
+      <label style="display: block; margin-bottom: 8px; color: var(--muted);">Tracker ID:</label>
+      <input type="text" id="trackerIdInput" placeholder="abc123" 
+             style="width: 100%; padding: 10px; background: rgba(0,0,0,.3); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 0.9rem;">
+    </div>
+
+    <button id="testApiBtn" style="padding: 12px 24px; background: var(--accent); border: none; border-radius: 8px; color: #0b1219; font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; font-weight: 600; cursor: pointer; margin-top: 16px;">Test Request</button>
+
+    <div style="margin-top: 24px;">
+      <label style="display: block; margin-bottom: 8px; color: var(--muted);">Response:</label>
+      <pre id="responseOutput" style="margin: 0; min-height: 120px; max-height: 400px; overflow-y: auto;"><code>// Response will appear here...</code></pre>
+    </div>
+  </div>
+
+  <div class="section">
     <div class="note">
       <strong>⚠️ Security Note:</strong> Never share your API token publicly. Treat it like a password. Regenerate it if compromised.
     </div>
   </div>
 </div>
+
+<script>
+const endpointSelect = document.getElementById('endpointSelect');
+const createTrackerFields = document.getElementById('createTrackerFields');
+const logsFields = document.getElementById('logsFields');
+const testApiBtn = document.getElementById('testApiBtn');
+const responseOutput = document.getElementById('responseOutput');
+
+endpointSelect.addEventListener('change', () => {
+  if (endpointSelect.value === 'create-tracker') {
+    createTrackerFields.style.display = 'block';
+    logsFields.style.display = 'none';
+  } else {
+    createTrackerFields.style.display = 'none';
+    logsFields.style.display = 'block';
+  }
+});
+
+testApiBtn.addEventListener('click', async () => {
+  const apiToken = document.getElementById('apiTokenInput').value;
+  if (!apiToken) {
+    responseOutput.innerHTML = '<code style="color: var(--red);">Error: Please enter your API token</code>';
+    return;
+  }
+
+  testApiBtn.disabled = true;
+  testApiBtn.textContent = 'Sending...';
+  responseOutput.innerHTML = '<code>Sending request...</code>';
+
+  try {
+    let url, method, body;
+
+    if (endpointSelect.value === 'create-tracker') {
+      const name = document.getElementById('trackerNameInput').value;
+      const destinationUrl = document.getElementById('destinationUrlInput').value;
+
+      if (!name || !destinationUrl) {
+        throw new Error('Tracker name and destination URL are required');
+      }
+
+      url = '/api/v1/create-tracker';
+      method = 'POST';
+      body = JSON.stringify({
+        name: name,
+        destination_url: destinationUrl
+      });
+    } else {
+      const trackerId = document.getElementById('trackerIdInput').value;
+
+      if (!trackerId) {
+        throw new Error('Tracker ID is required');
+      }
+
+      url = `/api/v1/logs/${trackerId}`;
+      method = 'GET';
+      body = null;
+    }
+
+    const headers = {
+      'Authorization': `Bearer ${apiToken}`,
+      'Content-Type': 'application/json'
+    };
+
+    const options = {
+      method: method,
+      headers: headers
+    };
+
+    if (body) {
+      options.body = body;
+    }
+
+    const response = await fetch(url, options);
+    const data = await response.json();
+
+    responseOutput.innerHTML = `<code>${JSON.stringify(data, null, 2)}</code>`;
+
+    if (response.ok) {
+      responseOutput.innerHTML = `<code style="color: var(--green);">${JSON.stringify(data, null, 2)}</code>`;
+    } else {
+      responseOutput.innerHTML = `<code style="color: var(--red);">${JSON.stringify(data, null, 2)}</code>`;
+    }
+  } catch (error) {
+    responseOutput.innerHTML = `<code style="color: var(--red);">Error: ${error.message}</code>`;
+  } finally {
+    testApiBtn.disabled = false;
+    testApiBtn.textContent = 'Test Request';
+  }
+});
+</script>
 </body>
 </html>
