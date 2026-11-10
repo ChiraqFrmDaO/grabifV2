@@ -554,7 +554,11 @@
       city: 'Stad',
       browserOs: 'Browser / OS',
       action: 'Actie',
-      noLogsAvailable: 'Nog geen logs beschikbaar.'
+      noLogsAvailable: 'Nog geen logs beschikbaar.',
+      forThisTracker: 'voor deze tracker.',
+      logsButton: '📊 Logs',
+      placeholderName: 'bijv. Instagram campagne',
+      copyFeedback: '✓ Gekopieerd'
     },
     en: {
       dashboardSubtitle: 'IP Tracking Dashboard',
@@ -623,7 +627,11 @@
       city: 'City',
       browserOs: 'Browser / OS',
       action: 'Action',
-      noLogsAvailable: 'No logs available yet.'
+      noLogsAvailable: 'No logs available yet.',
+      forThisTracker: 'for this tracker.',
+      logsButton: '📊 Logs',
+      placeholderName: 'e.g. Instagram campaign',
+      copyFeedback: '✓ Copied'
     }
   };
 
@@ -642,10 +650,14 @@
       }
     });
 
+    // Update placeholders
+    document.getElementById('name').placeholder = t('placeholderName');
+
     // Update button text that was hardcoded
     document.getElementById('generateBtn').textContent = t('linkCreate');
     document.getElementById('copyBtn').textContent = t('copy');
     document.getElementById('refreshBtn').textContent = '↻ ' + t('refresh');
+    document.getElementById('copyFeedback').textContent = t('copyFeedback');
 
     // Re-render dynamic content
     loadTrackersList();
@@ -694,6 +706,9 @@
   document.getElementById('copyBtn').addEventListener('click', copyLink);
   document.getElementById('refreshBtn').addEventListener('click', loadLogs);
   document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+
+  // Initialize language on page load
+  setLanguage(currentLang);
 
   // ── Link genereren ─────────────────────────────────────────────────────────
   async function generateLink() {
@@ -808,7 +823,7 @@ async function loadTrackersList() {
       const msg = document.createElement('p');
       msg.style.cssText =
         'color:var(--muted);padding:12px;font-size:.85rem;';
-      msg.textContent = 'Geen actieve trackers gevonden.';
+      msg.textContent = t('noTrackersFound');
       container.appendChild(msg);
       return;
     }
@@ -829,7 +844,7 @@ async function loadTrackersList() {
 
       const id = document.createElement('div');
       id.className = 'meta';
-      id.textContent = `ID: ${tracker.tracker_id}`;
+      id.textContent = `${t('idLabel')} ${tracker.tracker_id}`;
 
 
       const dest = document.createElement('div');
@@ -837,15 +852,15 @@ async function loadTrackersList() {
       dest.style.display = 'flex';
       dest.style.alignItems = 'center';
       dest.style.gap = '8px';
-      dest.innerHTML = `Bestemming: ${escapeHtml(tracker.destination_url)}`;
+      dest.innerHTML = `${t('destinationLabel')} ${escapeHtml(tracker.destination_url)}`;
 
       // Kopieer knop voor bestemming
       const destCopy = document.createElement('button');
       destCopy.className = 'btn btn-secondary btn-sm';
-      destCopy.textContent = '📋';
+      destCopy.textContent = '';
       destCopy.onclick = () => {
         navigator.clipboard.writeText(tracker.destination_url);
-        showToast('Bestemming gekopieerd!', 'success');
+        showToast(t('destinationCopied'), 'success');
       };
       dest.appendChild(destCopy);
 
@@ -855,15 +870,15 @@ async function loadTrackersList() {
       link.style.display = 'flex';
       link.style.alignItems = 'center';
       link.style.gap = '8px';
-      link.innerHTML = `Link: <a href="${url}" target="_blank">${escapeHtml(url)}</a>`;
+      link.innerHTML = `${t('link')}: <a href="${url}" target="_blank">${escapeHtml(url)}</a>`;
 
       // Kopieer knop voor link
       const linkCopy = document.createElement('button');
       linkCopy.className = 'btn btn-secondary btn-sm';
-      linkCopy.textContent = '📋';
+      linkCopy.textContent = '';
       linkCopy.onclick = () => {
         navigator.clipboard.writeText(url);
-        showToast('Link gekopieerd!', 'success');
+        showToast(t('linkCopied'), 'success');
       };
       link.appendChild(linkCopy);
 
@@ -873,15 +888,15 @@ async function loadTrackersList() {
       managementLink.style.display = 'flex';
       managementLink.style.alignItems = 'center';
       managementLink.style.gap = '8px';
-      managementLink.innerHTML = `Management: <a href="${managementUrl}" target="_blank">${escapeHtml(managementUrl)}</a>`;
+      managementLink.innerHTML = `${t('managementLabel')} <a href="${managementUrl}" target="_blank">${escapeHtml(managementUrl)}</a>`;
 
       // Kopieer knop voor management link
       const mgmtCopy = document.createElement('button');
       mgmtCopy.className = 'btn btn-secondary btn-sm';
-      mgmtCopy.textContent = '📋';
+      mgmtCopy.textContent = '';
       mgmtCopy.onclick = () => {
         navigator.clipboard.writeText(managementUrl);
-        showToast('Management link gekopieerd!', 'success');
+        showToast(t('managementCopied'), 'success');
       };
       managementLink.appendChild(mgmtCopy);
 
@@ -909,7 +924,7 @@ async function loadTrackersList() {
 
       const delBtn = document.createElement('button');
       delBtn.className = 'btn btn-danger btn-sm';
-      delBtn.textContent = '✕ Verwijderen';
+      delBtn.textContent = t('deleteLabel');
       delBtn.onclick = () =>
         deleteTracker(
           tracker.tracker_id,
@@ -970,7 +985,7 @@ async function loadTrackersList() {
         const td  = document.createElement('td');
         td.setAttribute('colspan', '9');
         td.style.cssText = 'color:var(--muted);text-align:center;padding:20px;';
-        td.textContent   = 'Nog geen logs beschikbaar.';
+        td.textContent   = t('noLogsAvailable');
         row.appendChild(td);
         tbody.appendChild(row);
         return logs;
@@ -1140,7 +1155,7 @@ async function loadTrackersList() {
     const msg = document.createElement('div');
     msg.className = 'detail-item';
     msg.style.gridColumn = '1/-1';
-    msg.textContent = 'Geen logs gevonden voor deze tracker.';
+    msg.textContent = t('noLogs') + ' ' + t('forThisTracker');
 
     content.append(grid, msg);
     document.getElementById('detailModalTitle').textContent = 'Log details';
@@ -1166,10 +1181,10 @@ async function loadTrackersList() {
       const data = await res.json();
 
       if (data.success) {
-        showToast(`Tracker "${trackerName}" verwijderd.`, 'success');
+        showToast(`Tracker "${trackerName}" ` + t('trackerDeleted'), 'success');
         await Promise.all([loadSummary(), loadTrackersList(), loadLogs()]);
       } else {
-        showToast('Verwijderen mislukt.', 'error');
+        showToast(t('deleteError'), 'error');
       }
     } catch {
       showToast('Netwerkfout bij verwijderen.', 'error');
