@@ -497,20 +497,6 @@
       No API token generated yet.
     </div>
     <button id="generateApiTokenBtn" class="btn btn-primary" style="margin-top:12px;" data-i18n="newApiToken">+ Generate API Token</button>
-    
-    <!-- API Documentation -->
-    <div style="margin-top:20px; padding:16px; background:rgba(255,255,255,.03); border-radius:12px; border:1px solid var(--border);">
-      <p style="font-size:0.8rem; color:var(--muted); margin-bottom:8px;" data-i18n="apiDocsTitle">API Documentation:</p>
-      <pre style="font-size:0.75rem; color:var(--text); overflow-x:auto; white-space:pre-wrap;"><code data-i18n="apiDocsText"># Create Tracker
-curl -X POST https://yourdomain.com/api/v1/create-tracker \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"My Tracker","destination_url":"https://example.com"}'
-
-# Get Logs
-curl https://yourdomain.com/api/v1/logs/TRACKER_ID \
-  -H "Authorization: Bearer YOUR_TOKEN"</code></pre>
-    </div>
   </div>
 
 </div><!-- /container -->
@@ -614,8 +600,6 @@ curl https://yourdomain.com/api/v1/logs/TRACKER_ID \
       regenerateToken: '🔄 Regenerate',
       noApiToken: 'No API token generated yet.',
       newApiToken: '+ Generate API Token',
-      apiDocsTitle: 'API Documentation:',
-      apiDocsText: '# Create Tracker\ncurl -X POST https://yourdomain.com/api/v1/create-tracker \\\n  -H "Authorization: Bearer YOUR_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d \'{"name":"My Tracker","destination_url":"https://example.com"}\'\n\n# Get Logs\ncurl https://yourdomain.com/api/v1/logs/TRACKER_ID \\\n  -H "Authorization: Bearer YOUR_TOKEN"',
       apiTokenGenerated: 'API token generated!',
       apiTokenFailed: 'API token generation failed.',
       apiTokenCopied: 'API token copied!'
@@ -699,8 +683,6 @@ curl https://yourdomain.com/api/v1/logs/TRACKER_ID \
       regenerateToken: '🔄 Regenerate',
       noApiToken: 'No API token generated yet.',
       newApiToken: '+ Generate API Token',
-      apiDocsTitle: 'API Documentation:',
-      apiDocsText: '# Create Tracker\ncurl -X POST https://yourdomain.com/api/v1/create-tracker \\\n  -H "Authorization: Bearer YOUR_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d \'{"name":"My Tracker","destination_url":"https://example.com"}\'\n\n# Get Logs\ncurl https://yourdomain.com/api/v1/logs/TRACKER_ID \\\n  -H "Authorization: Bearer YOUR_TOKEN"',
       apiTokenGenerated: 'API token generated!',
       apiTokenFailed: 'API token generation failed.',
       apiTokenCopied: 'API token copied!'
