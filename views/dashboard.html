@@ -266,6 +266,52 @@
     .toast.success { border-color: var(--green); color: var(--green); }
     .toast.error   { border-color: var(--red);   color: var(--red);   }
 
+    .confirm-dialog {
+      width: min(440px, calc(100% - 32px));
+      max-width: none;
+      margin: auto;
+      padding: 26px;
+      color: var(--text);
+      background: rgba(13,15,29,.97);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: 0 32px 90px rgba(0,0,0,.7), 0 0 36px rgba(0,204,255,.08);
+    }
+    .confirm-dialog::backdrop {
+      background: rgba(3,5,12,.76);
+      backdrop-filter: blur(8px);
+    }
+    .confirm-dialog .eyebrow {
+      color: var(--accent);
+      font-size: .7rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .confirm-dialog h2 {
+      font: 700 1.35rem 'Syne', sans-serif;
+      margin-bottom: 10px;
+    }
+    .confirm-dialog-message {
+      color: var(--muted);
+      font-size: .85rem;
+      line-height: 1.7;
+      overflow-wrap: anywhere;
+    }
+    .confirm-dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 24px;
+    }
+    .confirm-dialog-actions .btn { justify-content: center; }
+    @media (max-width: 480px) {
+      .confirm-dialog { padding: 22px; }
+      .confirm-dialog-actions { flex-direction: column-reverse; }
+      .confirm-dialog-actions .btn { width: 100%; }
+    }
+
     /* Resultaat na aanmaken link */
     #result {
       margin-top: 16px;
@@ -565,7 +611,16 @@
 </div>
 
 <!-- Toast notificatie -->
-<div id="toast" class="toast"></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<dialog id="confirmDialog" class="confirm-dialog" aria-labelledby="confirmDialogTitle" aria-describedby="confirmDialogMessage">
+  <p class="eyebrow" data-i18n="confirmDialogEyebrow">Bevestiging vereist</p>
+  <h2 id="confirmDialogTitle"></h2>
+  <p id="confirmDialogMessage" class="confirm-dialog-message"></p>
+  <div class="confirm-dialog-actions">
+    <button id="confirmDialogCancel" type="button" class="btn btn-secondary" data-i18n="cancelAction">Annuleren</button>
+    <button id="confirmDialogAccept" type="button" class="btn btn-danger" data-i18n="confirmAction">Doorgaan</button>
+  </div>
+</dialog>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
@@ -599,6 +654,11 @@
       open: 'Open',
       details: 'Logdetails',
       confirmLogout: 'Weet je zeker dat je wilt uitloggen?',
+      confirmLogoutTitle: 'Uitloggen?',
+      confirmDialogEyebrow: 'Bevestiging vereist',
+      cancelAction: 'Annuleren',
+      confirmAction: 'Doorgaan',
+      logoutSuccess: 'Je bent veilig uitgelogd. Tot de volgende keer!',
       logoutError: 'Fout bij uitloggen.',
       linkCopied: 'Link gekopieerd!',
       destinationCopied: 'Bestemming gekopieerd!',
@@ -611,6 +671,8 @@
       manage: 'Beheren',
       delete: 'Verwijderen',
       confirmDelete: 'Weet je zeker dat je deze tracker wilt verwijderen?',
+      confirmDeleteTitle: 'Tracker verwijderen?',
+      confirmDeleteMessage: 'Tracker "{name}" verwijderen? De bijbehorende logs worden ook verwijderd.',
       deleteError: 'Verwijderen mislukt.',
       trackerDeleted: 'Tracker verwijderd!',
       advancedOptions: '⚙️ Geavanceerde opties',
@@ -682,6 +744,11 @@
       open: 'Open',
       details: 'Log Details',
       confirmLogout: 'Are you sure you want to logout?',
+      confirmLogoutTitle: 'Log out?',
+      confirmDialogEyebrow: 'Confirmation required',
+      cancelAction: 'Cancel',
+      confirmAction: 'Continue',
+      logoutSuccess: 'You have been securely logged out. See you next time!',
       logoutError: 'Logout error.',
       linkCopied: 'Link copied!',
       destinationCopied: 'Destination copied!',
@@ -694,6 +761,8 @@
       manage: 'Manage',
       delete: 'Delete',
       confirmDelete: 'Are you sure you want to delete this tracker?',
+      confirmDeleteTitle: 'Delete tracker?',
+      confirmDeleteMessage: 'Delete tracker "{name}"? Its associated logs will also be deleted.',
       deleteError: 'Delete failed.',
       trackerDeleted: 'Tracker deleted!',
       advancedOptions: '⚙️ Advanced Options',
@@ -798,6 +867,36 @@
     el.className   = `toast ${type} show`;
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { el.className = 'toast'; }, 3000);
+  }
+
+  function confirmAction(message, { title = t('confirmAction'), confirmLabel = t('confirmAction'), danger = false } = {}) {
+    const dialog = document.getElementById('confirmDialog');
+    const cancelButton = document.getElementById('confirmDialogCancel');
+    const acceptButton = document.getElementById('confirmDialogAccept');
+    document.getElementById('confirmDialogTitle').textContent = title;
+    document.getElementById('confirmDialogMessage').textContent = message;
+    acceptButton.textContent = confirmLabel;
+    acceptButton.className = `btn ${danger ? 'btn-danger' : 'btn-primary'}`;
+
+    return new Promise(resolve => {
+      const finish = confirmed => {
+        cancelButton.removeEventListener('click', onCancelClick);
+        acceptButton.removeEventListener('click', onAcceptClick);
+        dialog.removeEventListener('cancel', onDialogCancel);
+        if (dialog.open) dialog.close();
+        resolve(confirmed);
+      };
+      const onCancelClick = () => finish(false);
+      const onAcceptClick = () => finish(true);
+      const onDialogCancel = event => {
+        event.preventDefault();
+        finish(false);
+      };
+      cancelButton.addEventListener('click', onCancelClick);
+      acceptButton.addEventListener('click', onAcceptClick);
+      dialog.addEventListener('cancel', onDialogCancel);
+      dialog.showModal();
+    });
   }
 
   // ── Advanced options toggle ──────────────────────────────────────────────────
@@ -1338,7 +1437,8 @@ async function loadTrackersList() {
 
   // ── Tracker verwijderen ────────────────────────────────────────────────────
   async function deleteTracker(trackerId, trackerName) {
-    if (!confirm(`Tracker "${trackerName}" verwijderen?\nDeze actie verwijdert ook de bijbehorende logs.`)) return;
+    const message = t('confirmDeleteMessage').replace('{name}', trackerName);
+    if (!await confirmAction(message, { title: t('confirmDeleteTitle'), confirmLabel: t('delete'), danger: true })) return;
 
     try {
       const res  = await fetch('/api/delete-tracker', {
@@ -1372,14 +1472,16 @@ async function loadTrackersList() {
 
   // ── Logout ─────────────────────────────────────────────────────────────────
   async function logout() {
-    if (!confirm('Weet je zeker dat je wilt uitloggen?')) return;
+    if (!await confirmAction(t('confirmLogout'), { title: t('confirmLogoutTitle'), confirmLabel: t('logoutBtn'), danger: true })) return;
     try {
       const res = await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
       if (res.ok) {
-        window.location.href = '/login';
+        window.location.href = '/login?loggedOut=1';
+      } else {
+        showToast(t('logoutError'), 'error');
       }
     } catch (err) {
-      alert('Fout bij uitloggen.');
+      showToast(t('logoutError'), 'error');
     }
   }
 

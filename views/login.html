@@ -177,6 +177,20 @@
       animation: shake 0.3s;
     }
 
+    .notice {
+      display: none;
+      margin-bottom: 20px;
+      padding: 14px 16px;
+      border: 1px solid rgba(0,255,136,.28);
+      border-radius: 12px;
+      background: rgba(0,255,136,.08);
+      color: var(--green);
+      font-size: .85rem;
+      line-height: 1.6;
+      text-align: center;
+    }
+    .notice.show { display: block; animation: fadeInUp .35s ease-out; }
+
     @keyframes shake {
       0%, 100% { transform: translateX(0); }
       25% { transform: translateX(-6px); }
@@ -239,6 +253,7 @@
       <div class="logo">LINKSPY</div>
       <p class="subtitle" data-i18n="subtitle">Sign in to your account</p>
 
+      <div id="notice" class="notice" role="status" aria-live="polite"></div>
       <div id="error" class="error"></div>
 
       <form id="loginForm" action="/api/login" method="post">
@@ -274,6 +289,7 @@
         register: 'Registreren',
         loginFailed: 'Ongeldige gebruikersnaam of wachtwoord.',
         networkError: 'Netwerkfout opgetreden.',
+        logoutSuccess: 'Je bent veilig uitgelogd. Tot de volgende keer!',
         loading: 'Bezig...'
       },
       en: {
@@ -285,6 +301,7 @@
         register: 'Sign up',
         loginFailed: 'Invalid username or password.',
         networkError: 'Network error occurred.',
+        logoutSuccess: 'You have been securely logged out. See you next time!',
         loading: 'Loading...'
       }
     };
@@ -351,6 +368,13 @@
     });
 
     setLanguage(currentLang);
+
+    if (new URLSearchParams(window.location.search).get('loggedOut') === '1') {
+      const notice = document.getElementById('notice');
+      notice.textContent = t('logoutSuccess');
+      notice.classList.add('show');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
   </script>
 </body>
 </html>
