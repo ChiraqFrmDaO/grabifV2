@@ -236,8 +236,23 @@
 
     .invites-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
       gap: 14px;
+    }
+    .tab-content > .table-header { padding: 2px 2px 8px; }
+    .tab-content > .table-header .section-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: .82rem;
+      letter-spacing: .12em;
+    }
+    .tab-content > .table-header .section-title::before {
+      content: '';
+      width: 3px;
+      height: 16px;
+      border-radius: 3px;
+      background: var(--brand-gradient);
     }
     .field { margin-bottom: 14px; }
     label {
@@ -270,6 +285,7 @@
       outline-offset: 3px;
     }
     .invite-card {
+      min-width: 0;
       background: rgba(255,255,255,.03);
       border: 1px solid var(--border);
       border-radius: 14px;
@@ -285,12 +301,65 @@
       font-size: 0.75rem;
       color: var(--muted);
       margin-bottom: 4px;
-      word-break: break-all;
+      overflow-wrap: anywhere;
+      line-height: 1.6;
+    }
+    .user-card .user-card-name {
+      color: var(--text);
+      font-family: 'Syne', sans-serif;
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .user-card .user-card-role {
+      display: inline-flex;
+      width: fit-content;
+      align-items: center;
+      gap: 7px;
+      margin-top: 6px;
+      padding: 5px 9px;
+      border: 1px solid rgba(0,204,255,.2);
+      border-radius: 999px;
+      background: rgba(0,204,255,.07);
+      color: var(--accent);
+      font-size: .68rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .user-card .user-card-role::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 8px rgba(0,255,136,.5);
     }
     .invite-card .actions {
       display: flex;
+      flex-wrap: wrap;
       gap: 8px;
       margin-top: 14px;
+    }
+    .user-card .actions .btn {
+      flex: 1 1 145px;
+      justify-content: center;
+      min-width: 0;
+      white-space: normal;
+      text-align: center;
+      line-height: 1.35;
+    }
+    .user-card .btn-danger {
+      background: rgba(239,68,68,.12);
+      border: 1px solid rgba(239,68,68,.28);
+      color: #ff8585;
+    }
+    .user-card .btn-danger:hover:not(:disabled) {
+      background: rgba(239,68,68,.2);
+      border-color: rgba(239,68,68,.5);
+    }
+    .tab-btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
     }
 
     .table-header {
@@ -312,7 +381,7 @@
       body { padding: 18px 14px 40px; }
       header { align-items: flex-start; flex-direction: column; }
       .user-info { width: 100%; }
-      .tabs { overflow-x: auto; }
+      .tabs { overflow-x: auto; scrollbar-width: thin; }
     }
     @media (max-width: 480px) {
       body { padding: 16px 12px 32px; }
@@ -321,6 +390,9 @@
       .section { padding: 18px; }
       .tab-btn { padding: 9px 13px; font-size: .8rem; }
       .user-badge { white-space: normal; }
+      .user-info { gap: 8px; }
+      .user-info > * { max-width: 100%; }
+      .user-card .actions .btn { flex-basis: 100%; }
     }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
@@ -730,19 +802,19 @@
 
       realUsers.forEach(user => {
         const card = document.createElement('div');
-        card.className = 'invite-card';
+        card.className = 'invite-card user-card';
 
         const username = document.createElement('div');
-        username.className = 'meta';
-        username.textContent = `${t('user')}: ${user.username}`;
+        username.className = 'meta user-card-name';
+        username.textContent = user.username;
 
         const email = document.createElement('div');
         email.className = 'meta';
-        email.textContent = `${t('email')}: ${user.email}`;
+        email.textContent = `${t('email')}: ${user.email || '—'}`;
 
         const role = document.createElement('div');
-        role.className = 'meta';
-        role.textContent = `${t('role')}: ${user.role}`;
+        role.className = 'user-card-role';
+        role.textContent = user.role;
 
         const actions = document.createElement('div');
         actions.className = 'actions';

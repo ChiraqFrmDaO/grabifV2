@@ -37,7 +37,7 @@
       inset: -35%;
       z-index: 0;
       background:
-        radial-gradient(ellipse at 25% 35%, rgba(0,255,136,.09) 0%, transparent 55%),
+        radial-gradient(ellipse at 25% 35%, rgba(0,255,136,.10) 0%, transparent 55%),
         radial-gradient(ellipse at 75% 65%, rgba(0,204,255,.08) 0%, transparent 55%);
       animation: ambientGlow 12s ease-in-out infinite alternate;
       pointer-events: none;
@@ -306,7 +306,7 @@
     /* ── Trackers grid ──────────────────────── */
     .trackers-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
       gap: 14px;
     }
     .tracker-card {
@@ -400,7 +400,7 @@
 
   <header>
     <div>
-      <h1>R3DIR3Ct</h1>
+      <h1>LinkSpy</h1>
       <span data-i18n="dashboardSubtitle">IP Tracking Dashboard</span>
     </div>
     <div class="user-info">
